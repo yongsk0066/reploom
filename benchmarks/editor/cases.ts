@@ -76,21 +76,33 @@ async function sample(run: () => void) {
   const element = document.querySelector("#editor .cm-editor");
   const view = element && EditorView.findFromDOM(element as HTMLElement);
   const syntaxAtTwoFrames = view ? syntaxTreeAvailable(view.state, view.state.doc.length) : true;
+  const viewportSyntaxAtTwoFrames = view ? syntaxTreeAvailable(view.state, view.viewport.to) : true;
+  if (view) await waitForSyntax(view, view.viewport.to);
+  const toViewportSyntaxMs = performance.now() - start;
   if (view) await waitForSyntax(view);
   const toSyntaxMs = performance.now() - start;
   clearInterval(heartbeat);
   const total = meter;
   meter = undefined;
-  return { syncMs, toFrameMs, toSyntaxMs, syntaxAtTwoFrames, sync, total };
+  return {
+    syncMs,
+    toFrameMs,
+    toSyntaxMs,
+    syntaxAtTwoFrames,
+    viewportSyntaxAtTwoFrames,
+    toViewportSyntaxMs,
+    sync,
+    total,
+  };
 }
 
 function verify(condition: unknown, message: string): asserts condition {
   if (!condition) throw Error(message);
 }
 
-async function waitForSyntax(view: EditorView) {
+async function waitForSyntax(view: EditorView, upto = view.state.doc.length) {
   const deadline = performance.now() + 10000;
-  while (!syntaxTreeAvailable(view.state, view.state.doc.length)) {
+  while (!syntaxTreeAvailable(view.state, upto)) {
     verify(performance.now() < deadline, "Parser did not finish");
     await task(5);
   }

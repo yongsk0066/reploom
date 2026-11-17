@@ -292,6 +292,45 @@ test("empty verified assets obey the cache entry limit instead of looking perpet
   }
 });
 
+test("oversized verified results share their pending request without evicting settled assets", async () => {
+  const contents = { small: "kept", large: new Uint8Array(9 * 1024 * 1024) };
+  const calls = { small: 0, large: 0 };
+
+  const repository = createAssetRepository({
+    manifestUrl: "https://test.invalid/assets/manifest.json",
+    fetch: async (url) => {
+      const key = new URL(url).pathname.split("/").at(-1);
+      calls[key]++;
+      return new Response(contents[key]);
+    },
+  });
+
+  const asset = (key) => ({
+    url: key,
+    sha256: createHash("sha256").update(contents[key]).digest("hex"),
+    type: "application/octet-stream",
+  });
+
+  try {
+    await repository.loadAsset(asset("small"));
+
+    const [one, two] = await Promise.all([
+      repository.loadBinaryAsset(asset("large")),
+      repository.loadBinaryAsset(asset("large")),
+    ]);
+
+    assert.equal(one, two);
+    assert.equal(await repository.loadAsset(asset("small")), "kept");
+    assert.deepEqual(calls, { small: 1, large: 1 });
+    await repository.loadBinaryAsset(asset("large"));
+    assert.equal(calls.large, 2);
+    assert.equal(await repository.loadAsset(asset("small")), "kept");
+    assert.equal(calls.small, 1);
+  } finally {
+    repository.dispose();
+  }
+});
+
 test("a failed project load cancels its sibling downloads while another project keeps its shared lease", async (t) => {
   const contents = new Map();
   const signals = new Map();

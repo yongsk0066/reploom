@@ -6,6 +6,7 @@ import { build } from "esbuild";
 import {
   createTreeEncoder,
   createTreeReceiver,
+  createTreePublisher,
 } from "../../packages/ui/src/codemirror/language/tree-channel.ts";
 import { createLanguageAnalysis } from "../../packages/ui/src/codemirror/language/client.ts";
 import { documentInput } from "../../packages/ui/src/codemirror/language/document-input.ts";
@@ -18,6 +19,7 @@ const { parser } = await esm("@lezer/javascript");
 const { TreeFragment, Tree } = await esm("@lezer/common");
 const { EditorState, Text, ChangeSet } = await esm("@codemirror/state");
 const { javascript } = await esm("@codemirror/lang-javascript");
+const { ensureSyntaxTree, syntaxTreeAvailable } = await esm("@codemirror/language");
 
 test("syntax root retirement handles shared nodes, reappearance and invalid transactions", () => {
   const encoder = createTreeEncoder();
@@ -215,14 +217,22 @@ test("disposing language analysis cancels creation and terminates a late Worker 
 test("language publication follows only the desired document revision and active lifetime", async () => {
   const commands = [];
   const published = [];
-  const worker = { postMessage: (command) => commands.push(command), terminate() {} };
+  const replies = [];
+  const publisher = createTreePublisher((reply) => replies.push(reply));
+
+  const worker = {
+    postMessage(command) {
+      if (command.type === "ack") publisher.acknowledge(command);
+      else commands.push(command);
+    },
+    terminate() {},
+  };
 
   const analysis = createLanguageAnalysis(
     { minCharacters: 1, createWorker: () => worker },
     (...args) => published.push(args),
   );
 
-  const encoder = createTreeEncoder();
   analysis.activate("/a.js");
   const extensions = analysis.support("/a.js", "jsx", javascript({ jsx: true }));
   EditorState.create({ doc: "const before=1;", extensions });
@@ -230,15 +240,136 @@ test("language publication follows only the desired document revision and active
   const latest = EditorState.create({ doc: "const after=2;", extensions });
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(commands.length, 2);
-  const reply = (command) => encoder.encode(parser.parse(command.source), command).reply;
-  worker.onmessage({ data: reply(commands[0]) });
+  for (const command of commands) publisher.publish(parser.parse(command.source), command);
+  assert.equal(replies.length, 1);
+  worker.onmessage({ data: replies[0] });
   assert.equal(published.length, 0);
-  worker.onmessage({ data: reply(commands[1]) });
+  assert.equal(replies.length, 2);
+  assert.equal(replies[1].base, 0);
+  worker.onmessage({ data: replies[1] });
   assert.deepEqual(published, [["/a.js", latest.doc]]);
   const late = worker.onmessage;
   analysis.dispose();
-  late({ data: reply(commands[1]) });
+  late({ data: replies[1] });
   assert.equal(published.length, 1);
+});
+
+test("syntax publication coalesces candidates against accepted roots and fences source resets", () => {
+  const replies = [];
+
+  const publisher = createTreePublisher((reply, transfer) =>
+    replies.push(structuredClone(reply, { transfer })),
+  );
+
+  const receiver = createTreeReceiver();
+
+  const publish = (revision) =>
+    publisher.publish(parser.parse(`const value=${revision};`), {
+      revision,
+      path: "/a.js",
+      kind: "jsx",
+    });
+
+  const accept = (index) => {
+    const reply = replies[index];
+    const tree = receiver.receive(reply, parser.nodeSet);
+    publisher.acknowledge({ type: "ack", version: reply.version, accepted: true });
+    return tree;
+  };
+
+  publish(1);
+  accept(0);
+  for (let revision = 2; revision <= 20; revision++) publish(revision);
+  assert.equal(replies.length, 2);
+  publisher.acknowledge({ type: "ack", version: 999, accepted: true });
+  assert.equal(replies.length, 2);
+  publisher.acknowledge({ type: "ack", version: replies[1].version, accepted: false });
+  assert.equal(replies.length, 3);
+  assert.equal(replies[2].revision, 20);
+  assert.equal(replies[2].base, 1);
+  assert.equal(accept(2).toString(), parser.parse("const value=20;").toString());
+  publish(21);
+  publisher.reset();
+  publish(22);
+  assert.equal(replies.length, 4);
+  accept(3);
+  assert.equal(replies.length, 5);
+  assert.equal(replies[4].base, 0);
+  accept(4);
+  publish(23);
+  assert.equal(replies[5].base, replies[4].version);
+  accept(5);
+});
+
+test("discarded graph transactions leave the committed reference counts and identities intact", () => {
+  const encoder = createTreeEncoder();
+  const receiver = createTreeReceiver();
+  const request = (revision) => ({ revision, path: "/a.js", kind: "jsx" });
+  const leaf = parser.parse("x");
+  const initial = new Tree(leaf.type, [leaf, leaf], [0, 1], 2);
+  const first = encoder.encode(initial, request(1));
+  const original = receiver.receive(first.reply, parser.nodeSet);
+  const retained = encoder.retainedNodes;
+  for (let revision = 2; revision < 50; revision++) {
+    const staged = encoder.stage(parser.parse(`let value=${revision}`), request(revision));
+    assert.equal(staged.reply.base, 1);
+    assert.equal(encoder.retainedNodes, retained);
+  }
+  const reused = encoder.encode(initial, request(50));
+  assert.deepEqual(reused.reply.records, []);
+  assert.equal(receiver.receive(reused.reply, parser.nodeSet), original);
+  const stale = encoder.stage(leaf, request(51));
+  encoder.reset();
+  assert.throws(() => stale.commit(), /Stale syntax/);
+});
+
+test("partial syntax remains visibly usable without claiming the unparsed tail or completing the wrong delivery", async () => {
+  const commands = [];
+  const replies = [];
+  const publisher = createTreePublisher((reply) => replies.push(reply));
+
+  const worker = {
+    postMessage(command) {
+      if (command.type === "ack") publisher.acknowledge(command);
+      else commands.push(command);
+    },
+    terminate() {},
+  };
+
+  let state;
+
+  const analysis = createLanguageAnalysis({ minCharacters: 1, createWorker: () => worker }, () =>
+    ensureSyntaxTree(state, state.doc.length, 1),
+  );
+
+  try {
+    analysis.activate("/a.js");
+    const source = "const value = {item: 1};\n".repeat(5000);
+    state = EditorState.create({
+      doc: source,
+      extensions: analysis.support("/a.js", "jsx", javascript()),
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    const request = commands[0];
+    const parse = parser.startParse(source);
+    parse.stopAt(5100);
+    let partial;
+    while (!(partial = parse.advance())) {}
+    publisher.publish(partial, request, 5100);
+    worker.onmessage({ data: replies[0] });
+    assert.equal(syntaxTreeAvailable(state, 5000), true);
+    assert.equal(syntaxTreeAvailable(state, source.length), false);
+    const full = parser.parse(source, TreeFragment.addTree(partial, [], true));
+    assert.equal(full.toString(), parser.parse(source).toString());
+    publisher.publish(full, request, source.length);
+    publisher.acknowledge({ type: "ack", version: replies[0].version, accepted: true });
+    assert.equal(replies[1].revision, replies[0].revision);
+    assert.notEqual(replies[1].version, replies[0].version);
+    worker.onmessage({ data: replies[1] });
+    assert.equal(syntaxTreeAvailable(state, source.length), true);
+  } finally {
+    analysis.dispose();
+  }
 });
 
 test("a retired language Worker factory cannot fail a different active document", async () => {
@@ -365,5 +496,51 @@ test("settlement retains input cadence without letting stale acknowledgements ch
     );
     policy.reset();
     assert.equal(policy.input(221, false), 0);
+  }
+});
+
+test("open prefix fragments preserve full grammar and source positions across languages", async () => {
+  const { parser: css } = await esm("@lezer/css");
+  const { parser: json } = await esm("@lezer/json");
+
+  const cases = [
+    [
+      parser.configure({ dialect: "jsx ts" }),
+      "function render(){return <>" + '<div title="한글😀">{1+2}</div>'.repeat(3000) + "</>}",
+    ],
+    [parser, "const entries=[" + "{value:`text ${1+2}`,pattern:/a[b]+/g},".repeat(2500) + "];"],
+    [
+      parser.configure({ dialect: "jsx" }),
+      "function render(){ return <div>" + "<span>{items?.map(x=><b>{x}</b>)}</span>".repeat(2000),
+    ],
+    [
+      css,
+      "@media (min-width:1px){" +
+        '.a:is(.b,.c){content:"한글😀";color:var(--x,red);}'.repeat(2000) +
+        "}",
+    ],
+    [json, "[" + '{"text":"한글😀","items":[1,true,null]},'.repeat(2500) + "{}]"],
+  ];
+
+  const signature = (tree) => {
+    const nodes = [];
+    tree.iterate({
+      enter(node) {
+        nodes.push(node.type.id, node.from, node.to);
+      },
+    });
+    return nodes;
+  };
+
+  for (const [grammar, source] of cases) {
+    const expected = signature(grammar.parse(source));
+    for (const frontier of [4096, 5101, 8192]) {
+      const parsing = grammar.startParse(source);
+      parsing.stopAt(frontier);
+      let prefix;
+      while (!(prefix = parsing.advance())) {}
+      const full = grammar.parse(source, TreeFragment.addTree(prefix, [], true));
+      assert.deepEqual(signature(full), expected);
+    }
   }
 });

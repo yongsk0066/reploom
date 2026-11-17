@@ -17,6 +17,7 @@ async function compilePhases(inputs) {
     let artifact;
     const iterations = input.source.length < 12000 ? 20 : 1;
     const samples = [];
+    let firstCall;
     for (let round = 0; round < 8; round++) {
       const phases = Array(10).fill(0);
       for (let iteration = 0; iteration < iterations; iteration++) {
@@ -29,6 +30,11 @@ async function compilePhases(inputs) {
           phases[point.phase] += (point.time - previous) / iterations;
           previous = point.time;
         }
+        if (round === 0 && iteration === 0)
+          firstCall = {
+            totalMs: points.at(-1).time - start,
+            points: points.map((p) => ({ phase: p.phase, ms: p.time - start })),
+          };
       }
       samples.push({ phases, total: phases.reduce((a, b) => a + b, 0) });
     }
@@ -47,6 +53,7 @@ async function compilePhases(inputs) {
       characters: input.source.length,
       iterations,
       samples,
+      firstCall,
       memoryBytes: engine.memoryBytes(),
       codeCharacters: artifact.code.length,
       mapCharacters: artifact.sourceMap.length,

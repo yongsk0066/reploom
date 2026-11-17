@@ -13,6 +13,8 @@ import { createModulePolicy } from "../../packages/runtime/src/execution/adapter
 import { createAssetRepository } from "../../packages/runtime/src/shared/assets.ts";
 import { createValidationServices } from "../../packages/runtime/src/browser/validation.ts";
 import { createTypecheckFiles } from "../../packages/build/src/typecheck-files.mjs";
+import { mapTypeDiagnostics } from "../../packages/build/src/typecheck-diagnostics.mjs";
+import { NotFoundError } from "@tsrs/wasm/core";
 import { PROTOCOL, MODULE_ABI } from "../../packages/runtime/src/shared/protocol.ts";
 
 const wasm = await WebAssembly.compile(
@@ -539,4 +541,205 @@ test("checker checkpoints cross retirement with compiled code and bounded metada
     (await second({ "/main.ts": "export const value: number = 'changed';" })).diagnostics[0].text,
     /TS2322/,
   );
+});
+
+test("diagnostic batches locate Unicode and CRLF sources without reusing obsolete line indexes", async (t) => {
+  const check = await createChecker(t, {
+    files: { "/reploom.d.ts": "" },
+    compilerOptions: { incremental: true },
+  });
+
+  const row = 'const label = "한글😀"; export const broken: number = "wrong";';
+  for (const prefix of ["\r\n".repeat(500), "// updated\n", ""]) {
+    const result = await check({
+      "/a.ts": prefix + row,
+      "/b.ts": 'export const other: number = "bad";',
+    });
+
+    assert.equal(result.diagnostics.length, 2);
+    const first = result.diagnostics.find((item) => item.file === "/a.ts");
+    assert.equal(first.line, prefix.split("\n").length);
+    assert.equal(first.column, row.indexOf("broken"));
+    const second = result.diagnostics.find((item) => item.file === "/b.ts");
+    assert.equal(second.line, 1);
+    assert.equal(second.column, 13);
+  }
+});
+
+test("diagnostic projection prefers checker coordinates and indexes fallback sources once per batch", () => {
+  const source = "// 한글😀\r\nlet x=1;\n";
+  const reads = [];
+
+  const read = (file) => {
+    reads.push(file);
+    return source;
+  };
+
+  const diagnostic = { fileName: "/a.ts", code: 2322, text: "invalid" };
+
+  const supplied = mapTypeDiagnostics(
+    [{ ...diagnostic, startPosition: { line: 2, character: 4 } }],
+    read,
+  );
+
+  assert.deepEqual(reads, []);
+  assert.equal(supplied[0].line, 3);
+  assert.equal(supplied[0].column, 4);
+
+  const positions = [
+    0,
+    1,
+    7,
+    source.indexOf("\n"),
+    source.indexOf("\n") + 1,
+    source.length,
+    source.length + 10,
+  ];
+
+  const fallback = mapTypeDiagnostics(
+    positions.map((pos) => ({ ...diagnostic, pos })),
+    read,
+  );
+
+  assert.deepEqual(reads, ["/a.ts"]);
+  for (let i = 0; i < positions.length; i++) {
+    const prefix = source.slice(0, positions[i]).split("\n");
+    assert.equal(fallback[i].line, prefix.length);
+    assert.equal(fallback[i].column, prefix.at(-1).length);
+  }
+  assert.equal(mapTypeDiagnostics([{ ...diagnostic, pos: source.length }], () => "")[0].line, 1);
+  assert.equal(
+    mapTypeDiagnostics([{ code: 1, text: "global" }], () => {
+      throw Error("missing");
+    })[0].column,
+    0,
+  );
+});
+
+test("checkpoint initialization skips WASM bytes and cancellation owns a failed-clone fallback", async () => {
+  const reusable = new WebAssembly.Module(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]));
+  const contents = { worker: "", config: "{}", wasm: new Uint8Array(9 * 1024 * 1024) };
+
+  const assets = Object.fromEntries(
+    Object.entries(contents).map(([name, value]) => [
+      name,
+      { url: name, sha256: createHash("sha256").update(value).digest("hex") },
+    ]),
+  );
+
+  let wasmRequests = 0;
+  let rejectClone = false;
+  let fallbackSignal;
+  const workers = [];
+
+  const repo = createAssetRepository({
+    manifestUrl: "https://fixture.invalid/manifest.json",
+    fetch: async (url, options) => {
+      const key = new URL(url).pathname.slice(1);
+      if (key === "manifest.json")
+        return Response.json({
+          schema: 2,
+          protocol: PROTOCOL,
+          moduleABI: MODULE_ABI,
+          typecheck: { worker: assets.worker, configuration: assets.config, wasm: assets.wasm },
+        });
+      if (key === "wasm" && ++wasmRequests === 2) {
+        fallbackSignal = options.signal;
+        return new Promise(() => {});
+      }
+      return new Response(contents[key]);
+    },
+  });
+
+  const services = createValidationServices(repo, {
+    maxMemoryBytes: 1,
+    createWorker: () => {
+      const worker = {
+        messages: [],
+        terminated: 0,
+        terminate() {
+          this.terminated++;
+        },
+        postMessage(message) {
+          this.messages.push(message);
+          if (message.module && rejectClone)
+            throw new DOMException("unsupported module", "DataCloneError");
+          queueMicrotask(() =>
+            this.onmessage?.({
+              data: {
+                protocol: 1,
+                id: message.id,
+                ready: true,
+                diagnostics: [],
+                memoryBytes: 2,
+                checkpoint: { module: reusable },
+              },
+            }),
+          );
+        },
+      };
+
+      workers.push(worker);
+      return worker;
+    },
+  });
+
+  try {
+    const signal = new AbortController().signal;
+    await services.types({ "/a.ts": "export const n=1;" }, signal);
+    await services.types({ "/a.ts": "export const n=2;" }, signal);
+    assert.equal(wasmRequests, 1);
+    assert.equal(workers[1].messages[0].module, reusable);
+    assert.equal(workers[1].messages[0].wasm, undefined);
+    rejectClone = true;
+    const controller = new AbortController();
+    const pending = services.types({ "/a.ts": "export const n=3;" }, controller.signal);
+    while (!fallbackSignal) await nextTask();
+    controller.abort();
+    await assert.rejects(pending, { name: "AbortError" });
+    await nextTask();
+    assert.equal(fallbackSignal.aborted, true);
+    assert.equal(workers[2].terminated, 1);
+    rejectClone = false;
+    await services.types({ "/a.ts": "export const n=4;" }, signal);
+    assert.equal(wasmRequests, 3);
+    assert.equal(workers[3].messages[0].module, undefined);
+  } finally {
+    services.dispose();
+    repo.dispose();
+  }
+});
+
+test("file-system layers index writes, append, removal, directory merges and normalized paths", () => {
+  const encode = new TextEncoder();
+  const decode = (bytes) => new TextDecoder().decode(bytes);
+
+  const create = createTypecheckFiles({
+    "/lib/index.d.ts": "original",
+    "/lib/shared.d.ts": "shared",
+    "/empty.d.ts": "",
+  });
+
+  const host = create({ "/lib/index.d.ts": "overlay", "/src/main.ts": "source" });
+  const other = create({});
+  assert.equal(decode(host.readFile("\\lib\\..\\lib\\index.d.ts")), "overlay");
+  assert.equal(decode(other.readFile("/lib/index.d.ts")), "original");
+  host.writeFile("/lib/index.d.ts", encode.encode("😀"), true);
+  assert.equal(decode(host.readFile("/lib/index.d.ts")), "overlay😀");
+  assert.equal(host.written.get("/lib/index.d.ts"), "overlay😀");
+  host.writeFile("/new/nested/file.ts", encode.encode("text"), false);
+  assert.deepEqual(host.readDir("/new"), [["d", "nested"]]);
+  assert.equal(host.stat("/new/nested").kind, "d");
+  assert.equal(host.stat("/empty.d.ts").size, 0);
+  assert.deepEqual(
+    new Set(host.readDir("/lib").map((entry) => entry.join(":"))),
+    new Set(["f:index.d.ts", "f:shared.d.ts"]),
+  );
+  host.remove("/new");
+  assert.throws(() => host.stat("/new"), NotFoundError);
+  assert.equal(host.written.has("/new/nested/file.ts"), false);
+  host.remove("/lib");
+  assert.equal(decode(host.readFile("/lib/index.d.ts")), "original");
+  assert.equal(host.written.has("/lib/index.d.ts"), false);
+  assert.equal(host.realpath("/src/../lib/index.d.ts"), "/lib/index.d.ts");
 });

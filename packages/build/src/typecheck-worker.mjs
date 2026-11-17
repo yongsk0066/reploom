@@ -1,5 +1,6 @@
 import { makeRequest, runTscAsync, parseReply } from "@tsrs/wasm/core";
 import { createTypecheckFiles } from "./typecheck-files.mjs";
+import { mapTypeDiagnostics } from "./typecheck-diagnostics.mjs";
 
 let module;
 let createFiles;
@@ -72,7 +73,6 @@ self.onmessage = async ({ data }) => {
     const errors = [];
     const host = createFiles(files);
     const decoder = new TextDecoder();
-    const diagnosticSources = new Map();
 
     const result = await runTscAsync(
       module,
@@ -87,33 +87,10 @@ self.onmessage = async ({ data }) => {
         ? nextBuildInfo
         : undefined;
 
-    const diagnostics = (result.reply.length ? parseReply(result.reply) : [])
-      .slice(0, 100)
-      .map((item) => {
-        let source = files[item.fileName];
-        if (typeof source !== "string" && item.fileName) {
-          source = diagnosticSources.get(item.fileName);
-          if (source === undefined) {
-            try {
-              source = decoder.decode(host.readFile(item.fileName));
-              diagnosticSources.set(item.fileName, source);
-            } catch {
-              source = "";
-            }
-          }
-        }
-
-        const lines = (typeof source === "string" ? source.slice(0, item.pos || 0) : "").split(
-          "\n",
-        );
-
-        return {
-          text: `TS${item.code}: ${item.text}`,
-          file: item.fileName,
-          line: lines.length,
-          column: lines.at(-1).length,
-        };
-      });
+    const diagnostics = mapTypeDiagnostics(
+      result.reply.length ? parseReply(result.reply) : [],
+      (path) => files[path] ?? decoder.decode(host.readFile(path)),
+    );
 
     if (result.exitCode && !diagnostics.length)
       diagnostics.push({ text: errors.join("") || "Type checking failed" });

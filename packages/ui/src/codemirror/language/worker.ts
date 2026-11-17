@@ -3,11 +3,16 @@ import { TreeFragment } from "@lezer/common";
 import { parser as javascript } from "@lezer/javascript";
 import { parser as css } from "@lezer/css";
 import { parser as json } from "@lezer/json";
-import { createTreeEncoder, type ParseRequest, type ParseReply } from "./tree-channel.ts";
+import {
+  createTreePublisher,
+  type ParseCommand,
+  type ParseRequest,
+  type ParseReply,
+} from "./tree-channel.ts";
 import { documentInput } from "./document-input.ts";
 
 const host = self as unknown as {
-  onmessage: ((event: MessageEvent<ParseRequest>) => void) | null;
+  onmessage: ((event: MessageEvent<ParseCommand>) => void) | null;
   postMessage(reply: ParseReply, transfer?: Transferable[]): void;
 };
 
@@ -18,11 +23,12 @@ const parsers = {
   json,
 };
 
-const encoder = createTreeEncoder();
+const publisher = createTreePublisher((reply, transfer) => host.postMessage(reply, transfer));
 let document = Text.empty;
 let fragments: readonly TreeFragment[] = [];
 let current: ParseRequest | undefined;
 let running = false;
+let partialRevision: number | undefined;
 const channel = new MessageChannel();
 let resume: (() => void) | undefined;
 channel.port1.onmessage = () => {
@@ -45,6 +51,15 @@ async function drain() {
     while (current) {
       const request = current;
       const parse = parsers[request.kind].startParse(documentInput(document), fragments);
+      const frontier = Math.min(document.length, Math.max(4096, (request.upto ?? 4096) + 1024));
+
+      const partial =
+        fragments.length === 0 &&
+        document.length > 64_000 &&
+        frontier < document.length &&
+        partialRevision !== request.revision;
+
+      if (partial) parse.stopAt(frontier);
       let deadline = performance.now() + 4;
       let tree;
       while (!(tree = parse.advance())) {
@@ -56,9 +71,13 @@ async function drain() {
       }
       if (current !== request) continue;
       if (!tree) continue;
-      fragments = TreeFragment.addTree(tree);
-      const { reply, transfer } = encoder.encode(tree, request);
-      host.postMessage(reply, transfer);
+      fragments = TreeFragment.addTree(tree, fragments, partial);
+      publisher.publish(tree, request, partial ? frontier : document.length);
+      if (partial) {
+        partialRevision = request.revision;
+        await yieldTask();
+        continue;
+      }
       return;
     }
   } catch (error) {
@@ -70,10 +89,14 @@ async function drain() {
 
 host.onmessage = ({ data }) => {
   try {
+    if (data.type === "ack") {
+      publisher.acknowledge(data);
+      return;
+    }
     if (data.source !== undefined) {
       document = Text.of(data.source.split("\n"));
       fragments = [];
-      encoder.reset();
+      publisher.reset();
     } else {
       if (
         !current ||
@@ -92,7 +115,13 @@ host.onmessage = ({ data }) => {
       fragments = TreeFragment.applyChanges(fragments, ranges);
       document = changes.apply(document);
     }
-    current = { revision: data.revision, base: data.base, path: data.path, kind: data.kind };
+    current = {
+      revision: data.revision,
+      base: data.base,
+      path: data.path,
+      kind: data.kind,
+      upto: data.upto,
+    };
     void drain();
   } catch (error) {
     host.postMessage({ type: "error", message: String(error) });

@@ -11,6 +11,7 @@ for (const name of [
   "typecheck.mjs",
   "typecheck-worker.mjs",
   "typecheck-files.mjs",
+  "typecheck-diagnostics.mjs",
 ])
   await cp(new URL(`../packages/build/src/${name}`, import.meta.url), new URL(name, out));
 await chmod(new URL("cli.mjs", out), 0o755);

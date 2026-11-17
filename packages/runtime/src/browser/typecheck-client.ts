@@ -73,7 +73,6 @@ export function createTypecheckClient(
 
       const fail = (error: unknown) => {
         clear();
-        retire();
         reject(error);
       };
 
@@ -91,20 +90,67 @@ export function createTypecheckClient(
       try {
         current.postMessage({ protocol: 1, id, ...message }, transfer);
       } catch (error) {
-        if (
-          "module" in message &&
-          message.module &&
-          error instanceof DOMException &&
-          error.name === "DataCloneError"
-        ) {
-          try {
-            current.postMessage({ protocol: 1, id, ...message, module: undefined }, transfer);
-          } catch (fallback) {
-            fail(fallback);
-          }
-        } else fail(error);
+        fail(error);
       }
     });
+  }
+
+  async function acquire(signal: AbortSignal) {
+    const manifest = await repository.loadManifest(signal);
+    const spec = manifest.typecheck;
+    if (!spec) throw new Error("Type checking was not prepared for this site");
+
+    const [source, configuration, wasm] = await Promise.all([
+      repository.loadAsset(spec.worker, signal),
+      repository.loadBinaryAsset({ ...spec.configuration, type: "application/json" }, signal),
+      checkpoint?.module
+        ? undefined
+        : repository.loadBinaryAsset({ ...spec.wasm, type: "application/wasm" }, signal),
+    ]);
+
+    signal.throwIfAborted();
+    url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+    worker = options.createWorker
+      ? options.createWorker(url)
+      : new Worker(url, { type: "module", name: "reploom-typecheck" });
+    const config = configuration.bytes.slice();
+
+    const initialize = (module?: WebAssembly.Module, bytes?: Uint8Array<ArrayBuffer>) =>
+      exchange(
+        {
+          type: "initialize",
+          module,
+          wasm: bytes,
+          configuration: config,
+          buildInfo: checkpoint?.buildInfo,
+          maxMemoryBytes: options.maxMemoryBytes,
+          reuse: options.idleMs !== 0,
+        },
+        signal,
+        bytes ? [bytes.buffer, config.buffer] : [config.buffer],
+      );
+
+    let ready;
+    try {
+      ready = await initialize(checkpoint?.module, wasm?.bytes.slice());
+    } catch (error) {
+      if (
+        !checkpoint?.module ||
+        !(error instanceof DOMException) ||
+        error.name !== "DataCloneError"
+      )
+        throw error;
+
+      const fallback = await repository.loadBinaryAsset(
+        { ...spec.wasm, type: "application/wasm" },
+        signal,
+      );
+
+      ready = await initialize(undefined, fallback.bytes.slice());
+    }
+
+    if (!ready.ready) throw new Error("Type checker initialization failed");
+    checkpoint = undefined;
   }
 
   return {
@@ -127,41 +173,7 @@ export function createTypecheckClient(
           idle = setTimeout(retire, options.idleMs ?? 5_000);
           return previous.diagnostics.map((diagnostic) => ({ ...diagnostic }));
         }
-        if (!worker) {
-          const manifest = await repository.loadManifest(signal);
-          const spec = manifest.typecheck;
-          if (!spec) throw new Error("Type checking was not prepared for this site");
-
-          const [source, configuration, wasm] = await Promise.all([
-            repository.loadAsset(spec.worker, signal),
-            repository.loadBinaryAsset({ ...spec.configuration, type: "application/json" }, signal),
-            repository.loadBinaryAsset({ ...spec.wasm, type: "application/wasm" }, signal),
-          ]);
-
-          signal.throwIfAborted();
-          url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
-          worker = options.createWorker
-            ? options.createWorker(url)
-            : new Worker(url, { type: "module", name: "reploom-typecheck" });
-          const bytes = wasm.bytes.slice();
-          const config = configuration.bytes.slice();
-
-          const ready = await exchange(
-            {
-              type: "initialize",
-              wasm: bytes,
-              configuration: config,
-              ...checkpoint,
-              maxMemoryBytes: options.maxMemoryBytes,
-              reuse: options.idleMs !== 0,
-            },
-            signal,
-            [bytes.buffer, config.buffer],
-          );
-
-          if (!ready.ready) throw new Error("Type checker initialization failed");
-          checkpoint = undefined;
-        }
+        if (!worker) await acquire(signal);
         const result = await exchange({ type: "check", files }, signal);
         if (!Array.isArray(result.diagnostics) || !Number.isSafeInteger(result.memoryBytes))
           throw new Error("Invalid type checker result");

@@ -29,6 +29,7 @@ type Desired = {
   kind: LanguageKind;
   doc: Text;
   revision: number;
+  upto: number;
   ready: Promise<void>;
   resolve(): void;
 };
@@ -59,7 +60,7 @@ export function createLanguageAnalysis(
   const receiver = createTreeReceiver();
   const nodeSets = new Map<LanguageKind, NodeSet>();
   let desired: Desired | undefined;
-  let result: { path: string; doc: Text; tree: Tree } | undefined;
+  let result: { path: string; doc: Text; tree: Tree; parsed: number } | undefined;
   let sent: Desired | undefined;
   let patch: { from: Text; to: Text; changes: ChangeSet } | undefined;
   let revision = 0;
@@ -111,16 +112,28 @@ export function createLanguageAnalysis(
       return;
     }
     try {
+      if (desired?.revision !== message.revision || desired.path !== message.path) {
+        worker?.postMessage({ type: "ack", version: message.version, accepted: false });
+        return;
+      }
       const set = nodeSets.get(message.kind);
       if (!set) throw Error("Unexpected syntax language");
+      if (
+        !Number.isSafeInteger(message.parsed) ||
+        message.parsed < 0 ||
+        message.parsed > desired.doc.length
+      )
+        throw Error("Invalid syntax coverage");
       const tree = receiver.receive(message, set);
-      if (desired?.revision !== message.revision || desired.path !== message.path) return;
-      clearTimeout(watchdog);
-      result = { path: desired.path, doc: desired.doc, tree };
+      worker?.postMessage({ type: "ack", version: message.version, accepted: true });
+      result = { path: desired.path, doc: desired.doc, tree, parsed: message.parsed };
       failures = 0;
-      desired.resolve();
-      clearTimeout(timer);
-      timer = setTimeout(retire, idleMs);
+      if (message.parsed >= desired.doc.length) {
+        clearTimeout(watchdog);
+        desired.resolve();
+        clearTimeout(timer);
+        timer = setTimeout(retire, idleMs);
+      }
     } catch (error) {
       fail(error);
       return;
@@ -195,6 +208,7 @@ export function createLanguageAnalysis(
         revision: next.revision,
         path: next.path,
         kind: next.kind,
+        upto: next.upto,
         base: incremental ? sent!.revision : 0,
         ...(incremental ? { edits } : { source: next.doc.toString() }),
       };
@@ -222,7 +236,7 @@ export function createLanguageAnalysis(
     });
   }
 
-  function request(path: string, kind: LanguageKind, doc: Text) {
+  function request(path: string, kind: LanguageKind, doc: Text, upto: number) {
     clearTimeout(timer);
     if (desired?.path === path && desired.doc === doc) return desired;
     desired?.resolve();
@@ -232,15 +246,15 @@ export function createLanguageAnalysis(
       resolve = done;
     });
 
-    desired = { path, kind, doc, revision: ++revision, ready, resolve };
+    desired = { path, kind, doc, upto, revision: ++revision, ready, resolve };
     enqueue();
     return desired;
   }
 
-  function read(path: string, kind: LanguageKind, doc: Text) {
+  function read(path: string, kind: LanguageKind, doc: Text, upto: number) {
     if (disabled || lifetime.signal.aborted || doc.length < threshold) return undefined;
-    if (result?.path === path && result.doc === doc) return result.tree;
-    return request(path, kind, doc).ready;
+    if (result?.path === path && result.doc === doc) return result;
+    return request(path, kind, doc, upto).ready;
   }
 
   return {
@@ -262,11 +276,31 @@ export function createLanguageAnalysis(
           ranges: readonly { from: number; to: number }[],
         ): PartialParse {
           const context = ParseContext.get();
-          const value = context && read(path, kind, context.state.doc);
+          const value = context && read(path, kind, context.state.doc, context.viewport.to);
           if (!value) return base.createParse(input, fragments, ranges);
           if (value instanceof Promise)
             return ParseContext.getSkippingParser(value).createParse(input, fragments, ranges);
-          return { parsedPos: input.length, stoppedAt: null, stopAt() {}, advance: () => value };
+
+          const skipped =
+            value.parsed < input.length
+              ? ranges
+                  .map((range) => ({ from: Math.max(range.from, value.parsed), to: range.to }))
+                  .filter((range) => range.from < range.to)
+              : [];
+
+          const pending = skipped.length
+            ? ParseContext.getSkippingParser(desired!.ready).createParse(input, fragments, skipped)
+            : undefined;
+
+          return {
+            parsedPos: input.length,
+            stoppedAt: null,
+            stopAt() {},
+            advance() {
+              pending?.advance();
+              return value.tree;
+            },
+          };
         }
       })();
 
@@ -292,7 +326,7 @@ export function createLanguageAnalysis(
       else if (patch?.to === before)
         patch = { from: patch.from, to: after, changes: patch.changes.compose(update.changes) };
       else patch = undefined;
-      request(path, kind, after);
+      request(path, kind, after, update.view.viewport.to);
     },
     dispose() {
       if (lifetime.signal.aborted) return;

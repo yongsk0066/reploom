@@ -9,8 +9,15 @@ globalThis.Worker = class extends NativeWorker {
   retired = false;
   name: string;
   replies: Array<{ memoryBytes: number; buildInfoBytes?: number; checkpoint: boolean }> = [];
-  languageReplies: Array<{ revision: number; records: number; bytes: number }> = [];
+  languageReplies: Array<{
+    revision: number;
+    version: number;
+    parsed: number;
+    records: number;
+    bytes: number;
+  }> = [];
   languageRequests: Array<{ base: number; source: number; edits: number }> = [];
+  initializations: Array<{ module: boolean; wasmBytes: number }> = [];
 
   constructor(url: string | URL, options?: WorkerOptions) {
     super(url, options);
@@ -26,6 +33,8 @@ globalThis.Worker = class extends NativeWorker {
       if (this.name === "reploom-language" && data?.type === "tree")
         this.languageReplies.push({
           revision: data.revision,
+          version: data.version,
+          parsed: data.parsed,
           records: data.records.length,
           bytes: data.records.reduce((n, record) => n + (record.buffer?.byteLength ?? 0), 0),
         });
@@ -38,7 +47,12 @@ globalThis.Worker = class extends NativeWorker {
   }
 
   override postMessage(message: any, options: Transferable[] | StructuredSerializeOptions = []) {
-    if (this.name === "reploom-language") {
+    if (this.name === "reploom-typecheck" && message.type === "initialize")
+      this.initializations.push({
+        module: !!message.module,
+        wasmBytes: message.wasm?.byteLength ?? 0,
+      });
+    if (this.name === "reploom-language" && message.type !== "ack") {
       this.languageRequests.push({
         base: message.base,
         source: message.source?.length ?? 0,

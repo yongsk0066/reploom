@@ -253,6 +253,7 @@ test("type-check checkpoints preserve diagnostics across memory-pressure Worker 
       results,
       workers: workers.length,
       retired: workers.filter((worker) => worker.retired).length,
+      initializations: workers.flatMap((worker) => worker.initializations),
       metadata: workers.flatMap((worker) =>
         worker.replies.map((reply) => ({
           bytes: reply.buildInfoBytes,
@@ -268,6 +269,9 @@ test("type-check checkpoints preserve diagnostics across memory-pressure Worker 
   expect(results.results[2]).toEqual([]);
   expect(results.workers).toBe(3);
   expect(results.retired).toBe(3);
+  expect(results.initializations.map((item) => item.module)).toEqual([false, true, true]);
+  expect(results.initializations[0].wasmBytes).toBeGreaterThan(0);
+  expect(results.initializations.slice(1).map((item) => item.wasmBytes)).toEqual([0, 0]);
   for (const metadata of results.metadata) {
     expect(metadata.bytes).toBeGreaterThan(0);
     expect(metadata.bytes).toBeLessThanOrEqual(1024 * 1024);

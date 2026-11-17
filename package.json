@@ -32,6 +32,7 @@
     "bench:typecheck-memory": "node benchmarks/typecheck-memory.mjs",
     "bench:editor": "node benchmarks/editor/run.mjs",
     "bench:syntax": "node benchmarks/syntax-channel.mjs",
+    "bench:interaction": "node benchmarks/interaction.mjs",
     "audit:publication": "node scripts/audit-publication.mjs"
   },
   "devDependencies": {

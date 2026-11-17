@@ -47,6 +47,9 @@ export function createAssetRepository(options: AssetRepositoryOptions) {
   let manifest: ReturnType<typeof createSharedTask<Manifest>> | undefined;
   let disposed = false;
   let cachedBytes = 0;
+  let cachedEntries = 0;
+  const maxCacheBytes = 8 * 1024 * 1024;
+  const maxCacheEntries = 32;
   const lifetime = new AbortController();
   const request = options.fetch ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
 
@@ -82,12 +85,13 @@ export function createAssetRepository(options: AssetRepositoryOptions) {
   function evict(key: string, item: CachedAsset) {
     if (assets.get(key) !== item) return;
     cachedBytes -= item.bytes;
+    if (item.settled) cachedEntries--;
     assets.delete(key);
   }
 
   function trim() {
     for (const [key, item] of assets) {
-      if (cachedBytes <= 8 * 1024 * 1024 && assets.size <= 32) break;
+      if (cachedBytes <= maxCacheBytes && cachedEntries <= maxCacheEntries) break;
       if (item.settled) evict(key, item);
     }
   }
@@ -164,9 +168,16 @@ export function createAssetRepository(options: AssetRepositoryOptions) {
           ? { bytes: new Uint8Array(bytes), type }
           : new TextDecoder().decode(bytes);
 
-        entry.bytes = typeof value === "string" ? value.length * 2 : bytes.byteLength;
+        const size = typeof value === "string" ? value.length * 2 : bytes.byteLength;
+        // Oversized results belong to their consumers, not the settled cache.
+        if (size > maxCacheBytes) {
+          assets.delete(key);
+          return value;
+        }
+        entry.bytes = size;
         entry.settled = true;
         cachedBytes += entry.bytes;
+        cachedEntries++;
         trim();
         return value;
       },
@@ -192,6 +203,7 @@ export function createAssetRepository(options: AssetRepositoryOptions) {
       lifetime.abort();
       assets.clear();
       cachedBytes = 0;
+      cachedEntries = 0;
       manifest = undefined;
     },
   };

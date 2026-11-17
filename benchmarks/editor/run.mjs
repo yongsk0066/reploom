@@ -6,7 +6,7 @@ import { createRequire } from "node:module";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cpus } from "node:os";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 
 const uiRequire = createRequire(new URL("../../packages/ui/package.json", import.meta.url));
 
@@ -17,13 +17,17 @@ const alias = Object.fromEntries(
   ]),
 );
 
-const variants = process.env.REPLOOM_EDITOR_VARIANTS?.split(",") ?? [
-  "production",
-  "production-worker",
-];
+const baseline = process.env.REPLOOM_EDITOR_BASELINE;
+
+const variants =
+  process.env.REPLOOM_EDITOR_VARIANTS?.split(",") ??
+  (baseline ? ["baseline", "production"] : ["production", "production-worker"]);
 
 for (const variant of variants)
-  assert.ok(["production", "production-worker"].includes(variant), "Unknown editor mode");
+  assert.ok(
+    ["production", "production-worker", ...(baseline ? ["baseline"] : [])].includes(variant),
+    "Unknown editor mode",
+  );
 
 const builds = new Map();
 const receipts = {};
@@ -34,6 +38,19 @@ for (const variant of variants) {
     write: false,
     format: "iife",
     alias,
+    plugins:
+      variant === "baseline"
+        ? [
+            {
+              name: "baseline-editor",
+              setup(build) {
+                build.onResolve({ filter: /packages\/ui\/src\/codemirror\/editor\.ts$/ }, () => ({
+                  path: resolve(baseline, "packages/ui/src/codemirror/editor.ts"),
+                }));
+              },
+            },
+          ]
+        : [],
   });
 
   const bytes = output.outputFiles[0].contents;
@@ -158,6 +175,11 @@ const selected = process.argv[2];
 const output = process.argv[3] ?? "artifacts/benchmarks/editor/editor.json";
 await mkdir(dirname(output), { recursive: true });
 try {
+  if (selected)
+    assert.ok(
+      selected.split(",").every((name) => cases.some((test) => test.name === name)),
+      "Unknown editor workload",
+    );
   for (const [engine, launcher] of Object.entries({ chromium, firefox, webkit })) {
     const browser = await launcher.launch();
     results[engine] = { version: browser.version(), cases: [] };
@@ -211,6 +233,8 @@ try {
               variant,
               JSON.stringify({
                 mount: result.mount.syncMs,
+                viewportSyntax: result.mount.toViewportSyntaxMs,
+                fullSyntax: result.mount.toSyntaxMs,
                 native: median(result.native.map((x) => x.syncMs)),
                 external: median(result.external.map((x) => x.syncMs)),
                 paste: median(result.paste.map((x) => x.syncMs)),
@@ -238,6 +262,7 @@ try {
         scope:
           "Fresh browser context per workload and mode. In-page timers isolate synchronous editor work, two-rAF settling and syntax availability without forced parsing. Production uses the configured size threshold; production-worker routes every nonempty document through the language Worker. Document text, syntax, navigation, bracket matching, selection and lifecycle are checked after reversible edits. Native input is a dispatch workload and paste is a synthetic ClipboardEvent. Inlined Worker source excludes network startup.",
         receipts,
+        baseline: baseline ? true : undefined,
         inputs: cases.map(({ name, path, source }) => ({
           name,
           path,

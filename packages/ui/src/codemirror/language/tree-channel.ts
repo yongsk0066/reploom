@@ -3,13 +3,19 @@ import { NodeProp, Tree, TreeBuffer, type NodeSet } from "@lezer/common";
 export type LanguageKind = "jsx" | "tsx" | "css" | "json";
 
 export type ParseRequest = {
+  type?: "parse";
   revision: number;
   base: number;
   path: string;
   kind: LanguageKind;
+  upto?: number;
   source?: string;
   edits?: { from: number; to: number; insert: string }[];
 };
+
+export type TreeAcknowledgement = { type: "ack"; version: number; accepted: boolean };
+
+export type ParseCommand = ParseRequest | TreeAcknowledgement;
 
 type TreeRecord =
   | {
@@ -26,6 +32,8 @@ type TreeRecord =
 export type TreeReply = {
   type: "tree";
   revision: number;
+  version: number;
+  parsed: number;
   base: number;
   path: string;
   kind: LanguageKind;
@@ -49,26 +57,15 @@ function materialize(record: TreeRecord, set: NodeSet, child: (id: number) => Tr
   return new Tree(type, record.children.map(child), record.positions, record.length, props);
 }
 
-/** The producer owns reachability; consumers apply ordered node additions and retirements. */
+/** Staged graphs retain their acknowledged base until the consumer accepts a replacement. */
 export function createTreeEncoder() {
   let ids = new WeakMap<Tree | TreeBuffer, number>();
   const live = new Map<number, { node: Tree | TreeBuffer; references: number }>();
   let serial = 0;
+  let serialVersion = 0;
   let revision = 0;
   let root: number | undefined;
-
-  function release(id: number, retired: number[]) {
-    const pending = [id];
-    while (pending.length) {
-      const id = pending.pop()!;
-      const entry = live.get(id)!;
-      if (--entry.references) continue;
-      live.delete(id);
-      retired.push(id);
-      if (entry.node instanceof Tree)
-        for (const child of entry.node.children) pending.push(ids.get(child)!);
-    }
-  }
+  let generation = 0;
 
   return {
     get retainedNodes() {
@@ -80,9 +77,22 @@ export function createTreeEncoder() {
       revision = 0;
       serial = 0;
       root = undefined;
+      generation++;
     },
-    encode(tree: Tree, request: ParseRequest) {
+    encode(tree: Tree, request: ParseRequest, parsed = tree.length) {
+      const staged = this.stage(tree, request, parsed);
+      staged.commit();
+      return { reply: staged.reply, transfer: staged.transfer };
+    },
+    stage(tree: Tree, request: ParseRequest, parsed = tree.length) {
+      const baseGeneration = generation;
       const visited = new Set<number>();
+      const added = new Map<number, { node: Tree | TreeBuffer; references: number }>();
+      const references = new Map<number, number>();
+
+      const reference = (id: number, change: number) =>
+        references.set(id, (references.get(id) ?? 0) + change);
+
       const records: TreeRecord[] = [];
       const transfer: ArrayBuffer[] = [];
       const pending: { node: Tree | TreeBuffer; exit: boolean }[] = [{ node: tree, exit: false }];
@@ -101,13 +111,13 @@ export function createTreeEncoder() {
             for (const child of node.children) pending.push({ node: child, exit: false });
           continue;
         }
-        live.set(id, { node, references: 0 });
+        added.set(id, { node, references: 0 });
         if (node instanceof TreeBuffer) {
           const buffer = node.buffer.slice();
           transfer.push(buffer.buffer);
           records.push({ id, length: node.length, buffer });
         } else {
-          for (const child of node.children) live.get(ids.get(child)!)!.references++;
+          for (const child of node.children) reference(ids.get(child)!, 1);
           records.push({
             id,
             length: node.length,
@@ -121,26 +131,88 @@ export function createTreeEncoder() {
       }
 
       const nextRoot = ids.get(tree)!;
-      live.get(nextRoot)!.references++;
+      reference(nextRoot, 1);
       const retired: number[] = [];
-      if (root !== undefined) release(root, retired);
-      root = nextRoot;
+      const releasing = root === undefined ? [] : [root];
+      while (releasing.length) {
+        const id = releasing.pop()!;
+        const entry = live.get(id)!;
+        reference(id, -1);
+        if (entry.references + references.get(id)!) continue;
+        retired.push(id);
+        if (entry.node instanceof Tree)
+          for (const child of entry.node.children) releasing.push(ids.get(child)!);
+      }
 
       const reply: TreeReply = {
         type: "tree",
         revision: request.revision,
+        version: ++serialVersion,
+        parsed,
         base: revision,
         path: request.path,
         kind: request.kind,
-        root,
+        root: nextRoot,
         retired,
         records,
       };
 
-      revision = request.revision;
-      return { reply, transfer };
+      return {
+        reply,
+        transfer,
+        commit() {
+          if (generation !== baseGeneration) throw Error("Stale syntax graph transaction");
+          for (const [id, entry] of added) live.set(id, entry);
+          for (const [id, change] of references) live.get(id)!.references += change;
+          for (const id of retired) live.delete(id);
+          root = nextRoot;
+          revision = reply.version;
+          generation++;
+        },
+      };
     },
   };
+}
+
+/** One in-flight graph and one latest candidate; rejected results never become delta bases. */
+export function createTreePublisher(send: (reply: TreeReply, transfer: ArrayBuffer[]) => void) {
+  const encoder = createTreeEncoder();
+  let generation = 0;
+  let pending: { tree: Tree; request: ParseRequest; parsed: number } | undefined;
+  let flight: { version: number; generation: number; commit(): void } | undefined;
+
+  function flush() {
+    if (flight || !pending) return;
+    const { tree, request, parsed } = pending;
+    pending = undefined;
+    const staged = encoder.stage(tree, request, parsed);
+    flight = { version: staged.reply.version, generation, commit: staged.commit };
+    send(staged.reply, staged.transfer);
+  }
+
+  return {
+    publish(tree: Tree, request: ParseRequest, parsed = tree.length) {
+      pending = { tree, request, parsed };
+      flush();
+    },
+    acknowledge(message: TreeAcknowledgement) {
+      if (!flight || flight.version !== message.version) return;
+      if (message.accepted && flight.generation === generation) flight.commit();
+      flight = undefined;
+      flush();
+    },
+    reset() {
+      generation++;
+      pending = undefined;
+      encoder.reset();
+    },
+  };
+}
+
+function validateTreeVersion(reply: TreeReply, current: number) {
+  if (reply.base !== 0 && reply.base !== current) throw Error("Missing syntax graph base");
+  if (!Number.isSafeInteger(reply.version) || reply.version <= reply.base)
+    throw Error("Invalid syntax graph version");
 }
 
 export function createTreeReceiver() {
@@ -155,7 +227,7 @@ export function createTreeReceiver() {
       revision = 0;
     },
     receive(reply: TreeReply, set: NodeSet) {
-      if (reply.base !== 0 && reply.base !== revision) throw Error("Missing syntax graph base");
+      validateTreeVersion(reply, revision);
       const previous = reply.base === 0 ? undefined : nodes;
       const added = new Map<number, Tree | TreeBuffer>();
       const retired = new Set(reply.retired);
@@ -182,7 +254,7 @@ export function createTreeReceiver() {
       if (!previous) nodes = new Map();
       for (const id of retired) nodes.delete(id);
       for (const [id, node] of added) nodes.set(id, node);
-      revision = reply.revision;
+      revision = reply.version;
       return tree;
     },
   };

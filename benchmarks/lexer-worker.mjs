@@ -28,17 +28,18 @@ for (const variant of variants) {
           build.onLoad({ filter: /language\/worker.ts$/ }, async ({ path }) => {
             const source = await readFile(path, "utf8");
             assert.ok(source.includes("const parse ="));
+            assert.ok(
+              source.includes(
+                "publisher.publish(tree, request, partial ? frontier : document.length);",
+              ),
+            );
             return {
               loader: "ts",
               contents: source
                 .replace("const parse =", "const start=performance.now(); const parse =")
                 .replace(
-                  "const { reply, transfer } =",
-                  "const parsed=performance.now(); const { reply, transfer } =",
-                )
-                .replace(
-                  "host.postMessage(reply, transfer)",
-                  "host.postMessage({...reply,parseMs:parsed-start,encodeMs:performance.now()-parsed},transfer)",
+                  "publisher.publish(tree, request, partial ? frontier : document.length);",
+                  "const parsed=performance.now(); publisher.publish(tree, request, partial ? frontier : document.length); host.postMessage({type:'metrics',revision:request.revision,parseMs:parsed-start,encodeMs:performance.now()-parsed});",
                 ),
             };
           });
@@ -95,9 +96,15 @@ try {
 
                 const result = await new Promise((resolve, reject) => {
                   const timeout = setTimeout(() => reject(Error("Timeout")), 20000);
+                  let tree;
                   worker.onmessage = ({ data }) => {
-                    clearTimeout(timeout);
-                    resolve(data);
+                    if (data.type === "tree") {
+                      tree = data;
+                      worker.postMessage({ type: "ack", version: data.version, accepted: true });
+                    } else {
+                      clearTimeout(timeout);
+                      resolve(data.type === "metrics" ? { ...tree, ...data, type: "tree" } : data);
+                    }
                   };
                   worker.onerror = (e) => {
                     clearTimeout(timeout);
@@ -108,6 +115,7 @@ try {
                     base: i,
                     path: "/main.js",
                     kind: "jsx",
+                    upto: source.length,
                     ...(i === 0
                       ? { source }
                       : {

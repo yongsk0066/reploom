@@ -15,6 +15,8 @@ const collect = process.env.REPLOOM_MEMORY_GC === "1";
 const heap = process.env.REPLOOM_MEMORY_HEAP === "1";
 const diagnose = process.env.REPLOOM_MEMORY_DIAGNOSE === "1";
 const waitLimit = Number(process.env.REPLOOM_MEMORY_WAIT_MS ?? 10000);
+const settleMs = Number(process.env.REPLOOM_MEMORY_SETTLE_MS ?? 0);
+assert.ok(Number.isFinite(settleMs) && settleMs >= 0);
 const baseline = process.env.REPLOOM_MEMORY_BASELINE;
 const variants = baseline ? ["baseline", "current"] : ["current"];
 const rounds = Number(process.env.REPLOOM_MEMORY_ROUNDS ?? (collect ? 1 : 2));
@@ -156,7 +158,13 @@ try {
           ? await launcher.connect(owner.wsEndpoint())
           : await launcher.launch();
 
-        const measure = () => footprint(owner?.process().pid ?? -1, before, webkitRoot);
+        const started = performance.now();
+
+        const measure = async () => ({
+          elapsedMs: performance.now() - started,
+          ...(await footprint(owner?.process().pid ?? -1, before, webkitRoot)),
+        });
+
         try {
           const page = await browser.newPage();
           const errors = [];
@@ -164,6 +172,7 @@ try {
           await page.goto(
             `http://127.0.0.1:${server.address().port}/?variant=${variant}${collect ? "&gc" : ""}`,
           );
+          if (settleMs) await page.waitForTimeout(settleMs);
           const samples = [{ stage: "loaded", ...(await measure()) }];
           const mounted = await page.evaluate(() => globalThis.memoryCase.mount());
           samples.push({ stage: "mounted", ...(await measure()) });
@@ -253,6 +262,7 @@ try {
         rounds,
         collectionFailures,
         waitLimit,
+        settleMs,
         bundles,
         collect,
         heap,
