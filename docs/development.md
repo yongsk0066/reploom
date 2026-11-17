@@ -73,6 +73,8 @@ Deleting a tracked file does not remove it from earlier Git commits. Before chan
 
 ## GitHub Actions and packages
 
+The source repository is public. Clone it over HTTPS and run `pnpm install --frozen-lockfile`, `pnpm build`, and `pnpm pack:all` to produce the three package archives locally. Pin a commit when preparing packages for a consuming application's CI.
+
 CI runs JavaScript and Rust checks, verifies packed consumers, and tests Chromium, Firefox, and WebKit. Clippy runs for the native host and `wasm32-unknown-unknown`. Actions are pinned to immutable revisions.
 
 A successful quality job uploads matching package archives. Download them from a successful CI run and install the three archives together:

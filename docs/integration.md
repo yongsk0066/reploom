@@ -4,7 +4,7 @@ Integrating Reploom takes two steps: a Node build that bundles dependencies and 
 
 ## Declare a project
 
-Install matching package archives as described in [private distribution](development.md#github-actions), then create `reploom.config.mjs` next to the consumer's `package.json`:
+Install matching package archives as described in [package distribution](development.md#github-actions-and-packages), then create `reploom.config.mjs` next to the consumer's `package.json`:
 
 ```js
 import { defineProject } from "@yongsk0066/reploom";
