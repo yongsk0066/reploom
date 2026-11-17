@@ -1,0 +1,14 @@
+node_modules/
+**/dist/
+.turbo/
+**/target/
+test-results/
+playwright-report/
+coverage/
+/artifacts/
+/.local/
+public/playground-generated/
+.DS_Store
+.env*
+!.env.example
+packages/runtime/compiler/

@@ -1,0 +1,390 @@
+use std::cmp::max;
+
+use oxc_allocator::ArenaStringBuilder;
+use oxc_data_structures::branch_hints::cold_path;
+use oxc_span::Span;
+use oxc_syntax::identifier::{
+    is_identifier_part, is_identifier_part_unicode, is_identifier_start_unicode,
+};
+
+use crate::{config::LexerConfig as Config, diagnostics};
+
+use super::{
+    FinishTokenMode, Kind, Lexer, PendingToken, SourcePosition, Token, cold_branch, keyword,
+    search::{SafeByteMatchTable, byte_search, safe_byte_match_table},
+};
+
+const MIN_ESCAPED_STR_LEN: usize = 16;
+
+static ASCII_ID_START_TABLE: SafeByteMatchTable =
+    safe_byte_match_table!(|b| b.is_ascii_alphabetic() || b == b'_' || b == b'$');
+
+static NOT_ASCII_ID_CONTINUE_TABLE: SafeByteMatchTable =
+    safe_byte_match_table!(|b| !(b.is_ascii_alphanumeric() || b == b'_' || b == b'$'));
+
+#[inline]
+pub(super) fn is_identifier_start_ascii_byte(byte: u8) -> bool {
+    ASCII_ID_START_TABLE.matches(byte)
+}
+
+impl<'a, C: Config> Lexer<'a, C> {
+    /// Consume an identifier starting with an ASCII byte and return its kind and end position.
+    /// `CHECK_KEYWORD` may be false only for starting bytes that cannot begin a keyword.
+    ///
+    /// Leave the first byte unconsumed. ASCII scanning stays inline; Unicode characters
+    /// and escapes use the decoding routines below.
+    ///
+    /// # SAFETY
+    /// * `self.source` must not be exhausted (at least 1 char remaining).
+    /// * Next char must be ASCII.
+    /// * `start_pos` must be the current position of `self.source`.
+    #[expect(clippy::inline_always)]
+    #[inline(always)]
+    pub(super) unsafe fn identifier_name_handler<const CHECK_KEYWORD: bool>(
+        &mut self,
+        start_pos: SourcePosition<'a>,
+    ) -> (Kind, SourcePosition<'a>) {
+        debug_assert_eq!(start_pos, self.source.position());
+        // Advance past 1st byte.
+        // SAFETY: Caller guarantees not at EOF, and next byte is ASCII.
+        let after_first = unsafe { start_pos.add(1) };
+
+        // Consume bytes which are part of identifier
+        let next_byte = byte_search! {
+            lexer: self,
+            table: NOT_ASCII_ID_CONTINUE_TABLE,
+            start: after_first,
+            handle_eof: {
+                if CHECK_KEYWORD {
+                    // SAFETY: The source is at EOF, after the saved identifier start.
+                    let id = unsafe { self.source.str_from_pos_to_current_unchecked(start_pos) };
+                    return (keyword::match_keyword(id.as_bytes()), self.source.position());
+                }
+                return (Kind::Ident, self.source.position());
+            },
+        };
+
+        // Keep decoding and keyword lookup in one cold call so IDT and KWD can both tail-call it.
+        // For IDT the keyword lookup always gives `Kind::Ident`, but skipping it would make the
+        // returned `Kind` a constant, which stops the call being a tail call.
+        if !next_byte.is_ascii() {
+            cold_path();
+            return self.identifier_name_uncommon::<false>(start_pos);
+        }
+        if next_byte == b'\\' {
+            cold_path();
+            return self.identifier_name_uncommon::<true>(start_pos);
+        }
+
+        let kind = if CHECK_KEYWORD {
+            // SAFETY: The scanner only moves forwards from the saved identifier start.
+            let id = unsafe { self.source.str_from_pos_to_current_unchecked(start_pos) };
+            keyword::match_keyword(id.as_bytes())
+        } else {
+            Kind::Ident
+        };
+        (kind, self.source.position())
+    }
+
+    /// Token handler for an identifier starting with an ASCII byte.
+    /// `CHECK_KEYWORD` may be false only for starting bytes that cannot begin a keyword.
+    ///
+    /// Does the same as `identifier_name_handler`, then finishes the token.
+    /// An identifier has no flags unless it contains an escape, so the common case skips
+    /// the work which `finish_next_inner` does for flags and trivia.
+    ///
+    /// # SAFETY
+    /// * `start_pos` must be the position of a byte which is not at the end of the source.
+    /// * That byte must be ASCII.
+    /// * If `ON_NEW_LINE` is `false`, no trivia must have been seen since the previous token,
+    ///   other than one space.
+    /// * If `ON_NEW_LINE` is `true`, line breaks and regular whitespace must be the only trivia
+    ///   seen since the previous token, and `pending` must not have been altered.
+    #[expect(clippy::inline_always)]
+    #[inline(always)]
+    pub(super) unsafe fn identifier_token<const CHECK_KEYWORD: bool, const ON_NEW_LINE: bool>(
+        &mut self,
+        start_pos: SourcePosition<'a>,
+    ) -> Token {
+        // Advance past 1st byte.
+        // SAFETY: Caller guarantees not at EOF, and next byte is ASCII.
+        let after_first = unsafe { start_pos.add(1) };
+
+        // Consume bytes which are part of identifier
+        let next_byte = byte_search! {
+            lexer: self,
+            table: NOT_ASCII_ID_CONTINUE_TABLE,
+            start: after_first,
+            // A byte which ends an identifier, so that EOF takes the common path below
+            handle_eof: b' ',
+        };
+
+        // Unicode characters and escapes are uncommon. Handle both in one cold call.
+        if !next_byte.is_ascii() || next_byte == b'\\' {
+            cold_path();
+            return self.identifier_token_uncommon(start_pos, next_byte == b'\\', ON_NEW_LINE);
+        }
+
+        let end = self.source.position();
+        let kind = if CHECK_KEYWORD {
+            // SAFETY: The scanner only moves forwards from the saved identifier start.
+            let id = unsafe { self.source.str_from_pos_to_current_unchecked(start_pos) };
+            keyword::match_keyword(id.as_bytes())
+        } else {
+            Kind::Ident
+        };
+        if ON_NEW_LINE {
+            self.finish_fresh_token_on_new_line(kind, start_pos, end)
+        } else {
+            self.finish_fresh_token(kind, start_pos, end)
+        }
+    }
+
+    /// Finish an identifier which contains a Unicode character or an escape.
+    /// Position of source must be on that character or escape.
+    #[cold]
+    #[inline(never)]
+    fn identifier_token_uncommon(
+        &mut self,
+        start_pos: SourcePosition<'a>,
+        is_escape: bool,
+        is_on_new_line: bool,
+    ) -> Token {
+        if is_on_new_line {
+            // No trivia was seen before the line break, so this is all that needs to be recorded
+            debug_assert_eq!(self.pending, PendingToken::NONE);
+            self.pending = PendingToken::AFTER_LINE_BREAK;
+        }
+        // `identifier_backslash` records the unescaped identifier against `token_start`
+        self.token_start = self.source.offset_of(start_pos);
+        let (kind, end) = if is_escape {
+            self.identifier_name_uncommon::<true>(start_pos)
+        } else {
+            self.identifier_name_uncommon::<false>(start_pos)
+        };
+        self.finish_next_inner(kind, end, FinishTokenMode::Push)
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn identifier_name_uncommon<const IS_ESCAPE: bool>(
+        &mut self,
+        start_pos: SourcePosition<'a>,
+    ) -> (Kind, SourcePosition<'a>) {
+        let id = if IS_ESCAPE {
+            self.identifier_backslash(start_pos, false)
+        } else {
+            self.identifier_tail_unicode(start_pos)
+        };
+        (keyword::match_keyword(id.as_bytes()), self.source.position())
+    }
+
+    /// Handle rest of identifier after first byte of a multi-byte Unicode char found.
+    /// Any number of characters can have already been consumed from `self.source` prior to it.
+    /// `self.source` should be positioned at start of Unicode character.
+    fn identifier_tail_unicode(&mut self, start_pos: SourcePosition<'a>) -> &'a str {
+        let c = self.peek_char().unwrap();
+        if is_identifier_part_unicode(c) {
+            self.identifier_tail_after_unicode(start_pos, c)
+        } else {
+            // Reached end of identifier. Return identifier.
+            self.source.str_from_pos_to_current(start_pos)
+        }
+    }
+
+    /// Handle identifier after a Unicode character has been validated.
+    ///
+    /// `first_char` must be the next character in `self.source` and a valid identifier character.
+    /// `start_pos` must be the position of the start of the identifier.
+    pub(super) fn identifier_tail_after_unicode(
+        &mut self,
+        start_pos: SourcePosition<'a>,
+        first_char: char,
+    ) -> &'a str {
+        let start = self.source.position();
+        let first_char_len = first_char.len_utf8();
+        for (offset, c) in self.source.remaining()[first_char_len..].char_indices() {
+            if is_identifier_part(c) {
+                continue;
+            }
+
+            // SAFETY: `first_char` was the next character in `source`, and `char_indices` yields
+            // in-bounds UTF-8 character boundaries relative to the end of that character.
+            self.source.set_position(unsafe { start.add(first_char_len + offset) });
+            if c == '\\' {
+                cold_path();
+                return self.identifier_backslash(start_pos, false);
+            }
+            return self.source.str_from_pos_to_current(start_pos);
+        }
+        self.source.advance_to_end();
+
+        // Return identifier
+        self.source.str_from_pos_to_current(start_pos)
+    }
+
+    /// Handle identifier starting with `\` escape.
+    pub fn identifier_backslash_handler(&mut self) -> Kind {
+        // Create arena string to hold unescaped identifier.
+        // We don't know how long identifier will end up being, so guess.
+        let str = ArenaStringBuilder::with_capacity_in(MIN_ESCAPED_STR_LEN, self.allocator);
+
+        // Process escape and get rest of identifier
+        let id = self.identifier_on_backslash(str, true);
+        Kind::match_keyword(id)
+    }
+
+    /// Consume rest of identifier after a `\` escape is found.
+    ///
+    /// The `\` must not have be consumed from `lexer.source`.
+    /// `start_pos` must be position of start of identifier.
+    fn identifier_backslash(&mut self, start_pos: SourcePosition<'a>, is_start: bool) -> &'a str {
+        // Create arena string to hold unescaped identifier.
+        // We don't know how long identifier will end up being. Take a guess that total length
+        // will be double what we've seen so far, or `MIN_ESCAPED_STR_LEN` minimum.
+        let so_far = self.source.str_from_pos_to_current(start_pos);
+        let capacity = max(so_far.len() * 2, MIN_ESCAPED_STR_LEN);
+        let mut str = ArenaStringBuilder::with_capacity_in(capacity, self.allocator);
+
+        // Push identifier up this point into `str`
+        str.push_str(so_far);
+
+        // Process escape and get rest of identifier
+        self.identifier_on_backslash(str, is_start)
+    }
+
+    /// Process rest of identifier after a `\` found.
+    ///
+    /// `self.source` should be positioned *on* the `\` (i.e. `\` has not been consumed yet).
+    /// `str` should contain the identifier up to before the escape.
+    /// `is_start` should be `true` if this is first char in the identifier, `false` otherwise.
+    fn identifier_on_backslash(
+        &mut self,
+        mut str: ArenaStringBuilder<'a>,
+        mut is_start: bool,
+    ) -> &'a str {
+        'outer: loop {
+            // Consume `\`
+            self.consume_char();
+
+            // Consume escape sequence and add char to `str`
+            self.identifier_unicode_escape_sequence(&mut str, is_start);
+            is_start = false;
+
+            // Consume chars until reach end of identifier or another escape
+            let chunk_start = self.source.position();
+            loop {
+                let maybe_char = self.peek_char();
+                if maybe_char.is_some_and(is_identifier_part) {
+                    self.consume_char();
+                    continue;
+                }
+
+                // End of identifier, EOF, or another `\` escape.
+                // Push chunk since last escape to `str`.
+                let chunk = self.source.str_from_pos_to_current(chunk_start);
+                str.push_str(chunk);
+
+                if maybe_char != Some('\\') {
+                    // End of identifier or EOF
+                    break 'outer;
+                }
+
+                // Found another escape. Go back to start of outer loop.
+                break;
+            }
+        }
+
+        // Convert `str` to arena slice and save to `escaped_strings`
+        let id = str.into_str();
+        self.save_string(true, id);
+        id
+    }
+
+    /// Entry point for a private identifier. i.e. after `#`.
+    /// `#` must be consumed before calling this.
+    ///
+    /// Like `identifier_name_handler`, this contains a fast path for identifiers which are pure ASCII.
+    /// Unicode characters and escapes are handled on paths marked `#[cold]` to keep the common ASCII
+    /// fast path as fast as possible.
+    pub fn private_identifier(&mut self) -> Kind {
+        // Handle EOF directly after `#`
+        let start_pos = self.source.position();
+        if start_pos.is_end_of(&self.source) {
+            return cold_branch(|| {
+                let start = self.offset();
+                self.error(diagnostics::unexpected_end(Span::empty(start)));
+                Kind::Undetermined
+            });
+        }
+
+        // Handle if not an ASCII identifier byte.
+        // SAFETY: Not at EOF, so safe to read a byte.
+        let b = unsafe { start_pos.read() };
+        if !is_identifier_start_ascii_byte(b) {
+            return self.private_identifier_not_ascii_id();
+        }
+
+        // SAFETY: Not at EOF, so can advance 1 byte without going out of bounds
+        let after_first = unsafe { start_pos.add(1) };
+
+        // Consume bytes which are part of identifier
+        let next_byte = byte_search! {
+            lexer: self,
+            table: NOT_ASCII_ID_CONTINUE_TABLE,
+            start: after_first,
+            handle_eof: {
+                return Kind::PrivateIdentifier;
+            },
+        };
+
+        // Found a matching byte.
+        // Either end of identifier found, or a Unicode char, or `\` escape.
+        // Handle uncommon cases in cold branches to keep the common ASCII path
+        // as fast as possible.
+        if !next_byte.is_ascii() {
+            cold_path();
+            // SAFETY: `after_first` is position after consuming 1 byte, so subtracting 1
+            // makes `start_pos` `source`'s position as it was at start of this function
+            let start_pos = unsafe { after_first.sub(1) };
+            self.identifier_tail_unicode(start_pos);
+            return Kind::PrivateIdentifier;
+        }
+        if next_byte == b'\\' {
+            cold_path();
+            // SAFETY: `after_first` is position after consuming 1 byte, so subtracting 1
+            // makes `start_pos` `source`'s position as it was at start of this function
+            let start_pos = unsafe { after_first.sub(1) };
+            self.identifier_backslash(start_pos, false);
+            return Kind::PrivateIdentifier;
+        }
+
+        Kind::PrivateIdentifier
+    }
+
+    /// Handle private identifier whose first byte is not an ASCII identifier start byte.
+    #[cold]
+    fn private_identifier_not_ascii_id(&mut self) -> Kind {
+        let b = self.peek_byte().unwrap();
+        if !b.is_ascii() {
+            let c = self.peek_char().unwrap();
+            if is_identifier_start_unicode(c) {
+                let start_pos = self.source.position();
+                self.identifier_tail_after_unicode(start_pos, c);
+                return Kind::PrivateIdentifier;
+            }
+        } else if b == b'\\' {
+            // Assume Unicode characters are more common than `\` escapes, so this branch as cold
+            cold_path();
+            self.identifier_backslash_handler();
+            return Kind::PrivateIdentifier;
+        }
+
+        // No identifier found
+        let start = self.offset();
+        let c = self.consume_char();
+        self.error(diagnostics::invalid_character(c, Span::new(start, self.offset())));
+        self.advance_to_end();
+        Kind::Eof
+    }
+}

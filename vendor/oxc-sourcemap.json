@@ -1,0 +1,44 @@
+{
+  "crate": "oxc_sourcemap",
+  "version": "10.0.0",
+  "repository": "https://github.com/oxc-project/oxc-sourcemap",
+  "commit": "deabff35803a41214d724ad5b842f12be5151339",
+  "upstreamFiles": {
+    ".cargo_vcs_info.json": "5c45b770ee00cbbb7753527102b3cd2a94ed7999883372f6c2b66cc5b406d33e",
+    "Cargo.lock": "111d84880c200f2d9f5cb2c8570c21f2934738f7c7a0805e870c9623e32e40ab",
+    "Cargo.toml": "9fb438ca042c0a447b982a9c449cdc7d317e5196ff0f8526ff207eafaed10f31",
+    "Cargo.toml.orig": "8cc703a911b02e79830f9edfa9ef79d3f83a25c5a26ed04908361efdcc8e2a97",
+    "LICENSE": "7516e1cf340213f60d96bca77bb012882dbf80e7cca5922c914174f605d9ef71",
+    "README.md": "9e5e152b0f09a74b3ad50fe112274769df7b4439b2f057976c69e3141981ecbe",
+    "benches/builder.rs": "420b265b048139101c8be28b2609d901f97d93e06816e33a80343b0122fc373e",
+    "benches/common/mod.rs": "908871104dd6558254c9d58ea134e8472ae19f96e60df034fd5dede27d4d0b71",
+    "benches/concat.rs": "915d26efcfe3cbd10a6cc0e1a6ad9b4ef8e044e0ae37138471ca5ac0ba64932e",
+    "benches/lookup_table.rs": "c43abf4f2ae11d78b6d3d8a888e24dea40a81a404b06080d511661b9c6d31cee",
+    "benches/lookup_token.rs": "9721177fd9250ada4409f02fefb9a5d421e29ea3f16997a17bc5e67b49af0da2",
+    "benches/parse.rs": "b4e67d1a1b4c0ff3c619583093f0f5e62560d4df1dbbe11dcc327ba54afe940d",
+    "benches/serialize.rs": "d2ffc599fc545758918aad213cae0158d51a3707b06601025d26e89f94b388ec",
+    "build.rs": "65421daef1035487cfac516b2e13345ac1ea70b01614618fcdaee84ed3c86f84",
+    "src/compose.rs": "887d0a5114e7bd0e8c5e44b9175ce7031466cd1e1a8e20b7287e60305bac72b3",
+    "src/concat_sourcemap_builder.rs": "8672d1a261ae90807ea2e37dd4d0fc0043112100a08bf6e2c0f403d8cce9c0b6",
+    "src/decode.rs": "054606500c5cb28e2a27a472a7dbd683a41a45139ed5ff52c0610df21326b3b2",
+    "src/encode.rs": "596f09e2125c40b8fa8934763b75894e2ba91fcfaadba9ac95536d6d0e1cde74",
+    "src/error.rs": "1a15c799ce960fcc58487dc7263695fd93c7701637c0d3788690d3879c31d15c",
+    "src/lib.rs": "3549cd193c63979c10f2dbbfa292f80de21a7082c6fbaf8b63d96cc0b25aac1f",
+    "src/lookup_cursor.rs": "6f916233d2a4c69092e11b0a8d4b599ad27e07816972b7842df4c455b323aac2",
+    "src/napi.rs": "1743852e05838b57fa84620aabacd37d4a14cb94f06dd5c69d680520b5b0f403",
+    "src/owned_sourcemap.rs": "724697becc77d022bee83601049afccc7b28384766de1cc3d8b8562cbcbffd54",
+    "src/sourcemap.rs": "cd6d83a6af305d181388e6c6f1e0e3204e466787a65d6259fd04d1afdb3111d0",
+    "src/sourcemap_builder.rs": "53305beebc04326616dc4f2209d282a66ba3ddf2f06ccda5b4e310f6736bbc0e",
+    "src/sourcemap_visualizer.rs": "82915a7510e44bdad94547f546cf124f6623260bd7d6d375052b6a5f8bc5bdb0",
+    "src/token.rs": "4001a7acf047c765b95eee0987ec3bd96b5153210001793fa4406f9ff2952c02",
+    "tests/fixtures/perf/real_large.map": "98d2deef0e797ffc9c30e0017a485b02d2ec4eab7f121802455e0d9171d18dff",
+    "tests/fixtures/perf/real_medium.map": "2ec9d490ec76ef2a9bfed717c3f7cea3a6aa5cbc22ee34d6ed1b76f1c66d977a",
+    "tests/fixtures/perf/real_small.map": "78634c6d71bbfca65a962d0ad57920bd1cac6f343fc9640d2d502012365e6b6f"
+  },
+  "patches": [
+    {
+      "file": "patches/oxc-sourcemap-generated-offset.patch",
+      "kind": "local"
+    }
+  ]
+}

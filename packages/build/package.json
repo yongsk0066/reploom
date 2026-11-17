@@ -1,0 +1,46 @@
+{
+  "name": "@yongsk0066/reploom-build",
+  "version": "0.1.0-alpha.0",
+  "description": "Prepare self-hosted Reploom project assets.",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yongsk0066/reploom.git"
+  },
+  "bin": {
+    "reploom": "./dist/cli.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/prepare.mjs"
+    }
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build-tools.mjs",
+    "check": "node --check src/prepare.mjs && node --check src/vendor.mjs && node --check src/cli.mjs"
+  },
+  "dependencies": {
+    "@yongsk0066/reploom": "workspace:*",
+    "esbuild": "0.28.2",
+    "react-refresh": "0.19.0"
+  },
+  "peerDependencies": {
+    "@tsrs/wasm": "0.25.0-ts7.1.0-beta"
+  },
+  "peerDependenciesMeta": {
+    "@tsrs/wasm": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=26"
+  }
+}

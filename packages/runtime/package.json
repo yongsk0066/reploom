@@ -1,0 +1,44 @@
+{
+  "name": "@yongsk0066/reploom",
+  "version": "0.1.0-alpha.0",
+  "description": "Headless browser runtime for editable frontend examples.",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yongsk0066/reploom.git"
+  },
+  "files": [
+    "dist",
+    "compiler"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js"
+    },
+    "./internal/*": {
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js"
+    },
+    "./compiler/*": "./compiler/*"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build-runtime.mjs",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@jridgewell/trace-mapping": "0.3.31"
+  },
+  "engines": {
+    "node": ">=26"
+  }
+}

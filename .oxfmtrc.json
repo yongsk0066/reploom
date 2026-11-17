@@ -1,0 +1,12 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "ignorePatterns": [
+    "packages/ui/vendor/**",
+    "**/dist/**",
+    "**/compiler/manifest.json",
+    "pnpm-lock.yaml",
+    "packages/runtime/compiler/**",
+    "tests/fixtures/regression/projects/**"
+  ],
+  "printWidth": 100
+}

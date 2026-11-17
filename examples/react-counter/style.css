@@ -1,0 +1,13 @@
+body {
+  font: 16px system-ui;
+  padding: 24px;
+  color: #1e293b;
+}
+input,
+button {
+  padding: 8px;
+  margin: 8px;
+}
+.milestone {
+  background: #d1fae5;
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@reploom/demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@yongsk0066/reploom": "workspace:*",
+    "@yongsk0066/reploom-build": "workspace:*",
+    "@yongsk0066/reploom-ui": "workspace:*",
+    "clsx": "2.1.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "toastify-js": "1.12.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

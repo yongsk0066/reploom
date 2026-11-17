@@ -1,0 +1,31 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "globalDependencies": [
+    "crates/compiler/Cargo.toml",
+    "crates/compiler/Cargo.lock",
+    "crates/compiler/src/**",
+    "crates/compiler/artifacts/**",
+    "crates/compiler/engine.mjs",
+    "vendor/**",
+    "patches/**",
+    "rust-toolchain.toml",
+    "scripts/build-*.mjs",
+    "scripts/compiler-inputs.mjs",
+    "scripts/verify-compiler.mjs"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "compiler/**"]
+    },
+    "check": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "@reploom/demo#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "../../examples/**"],
+      "outputs": ["dist/**"]
+    }
+  }
+}

@@ -1,0 +1,106 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index c0306cbef07827c5a549ec27623d5359bd50b406..02a2d7520a1e8659267b517800ba9b81cdacafe1 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -850,6 +850,30 @@ function matchNodeContext(node, context, i = context.length - 1) {
+     }
+     return true;
+ }
++const previousSiblingIndexes = new WeakMap();
++
++
++
++function previousSiblingIndex(buffer, parentStart, index) {
++  const data = buffer.buffer;
++  if (data.length < 256 || data.length > 65535)
++    return buffer.findChild(parentStart, index, -1, 0, 4);
++  let previous = previousSiblingIndexes.get(buffer);
++  if (!previous) {
++    previous = new Uint16Array(data.length / 4).fill(65535);
++    for (let offset = 0; offset < data.length; offset += 4) {
++      const next = data[offset + 3];
++      // Preorder visits the sibling root before its descendants. Several nodes
++      // can end at the same slot; the first owner is the sibling to retain.
++      if (next < data.length && previous[next / 4] === 65535) previous[next / 4] = offset;
++    }
++    previousSiblingIndexes.set(buffer, previous);
++  }
++  const found = previous[index / 4];
++  if (found < parentStart || found >= index) throw Error("Invalid previous-sibling index");
++  return found;
++}
++
+ class BufferContext {
+     constructor(parent, buffer, index, start) {
+         this.parent = parent;
+@@ -904,7 +928,7 @@ class BufferNode extends BaseNode {
+         let parentStart = this._parent ? this._parent.index + 4 : 0;
+         if (this.index == parentStart)
+             return this.externalSibling(-1);
+-        return new BufferNode(this.context, this._parent, buffer.findChild(parentStart, this.index, -1, 0, 4 /* Side.DontCare */));
++        return new BufferNode(this.context, this._parent, previousSiblingIndex(buffer, parentStart, this.index));
+     }
+     get tree() { return null; }
+     toTree() {
+@@ -1106,7 +1130,7 @@ class TreeCursor {
+         if (dir < 0) {
+             let parentStart = d < 0 ? 0 : this.stack[d] + 4;
+             if (this.index != parentStart)
+-                return this.yieldBuf(buffer.findChild(parentStart, this.index, -1, 0, 4 /* Side.DontCare */));
++                return this.yieldBuf(previousSiblingIndex(buffer, parentStart, this.index));
+         }
+         else {
+             let after = buffer.buffer[this.index + 3];
+diff --git a/dist/index.js b/dist/index.js
+index ae0ef060c2508a05fdfaf060d68fcbf18bb8ba18..f4a7d4e961327b15cfa18c3273db26aef478c984 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -848,6 +848,30 @@ function matchNodeContext(node, context, i = context.length - 1) {
+     }
+     return true;
+ }
++const previousSiblingIndexes = new WeakMap();
++
++
++
++function previousSiblingIndex(buffer, parentStart, index) {
++  const data = buffer.buffer;
++  if (data.length < 256 || data.length > 65535)
++    return buffer.findChild(parentStart, index, -1, 0, 4);
++  let previous = previousSiblingIndexes.get(buffer);
++  if (!previous) {
++    previous = new Uint16Array(data.length / 4).fill(65535);
++    for (let offset = 0; offset < data.length; offset += 4) {
++      const next = data[offset + 3];
++      // Preorder visits the sibling root before its descendants. Several nodes
++      // can end at the same slot; the first owner is the sibling to retain.
++      if (next < data.length && previous[next / 4] === 65535) previous[next / 4] = offset;
++    }
++    previousSiblingIndexes.set(buffer, previous);
++  }
++  const found = previous[index / 4];
++  if (found < parentStart || found >= index) throw Error("Invalid previous-sibling index");
++  return found;
++}
++
+ class BufferContext {
+     constructor(parent, buffer, index, start) {
+         this.parent = parent;
+@@ -902,7 +926,7 @@ class BufferNode extends BaseNode {
+         let parentStart = this._parent ? this._parent.index + 4 : 0;
+         if (this.index == parentStart)
+             return this.externalSibling(-1);
+-        return new BufferNode(this.context, this._parent, buffer.findChild(parentStart, this.index, -1, 0, 4 /* Side.DontCare */));
++        return new BufferNode(this.context, this._parent, previousSiblingIndex(buffer, parentStart, this.index));
+     }
+     get tree() { return null; }
+     toTree() {
+@@ -1104,7 +1128,7 @@ class TreeCursor {
+         if (dir < 0) {
+             let parentStart = d < 0 ? 0 : this.stack[d] + 4;
+             if (this.index != parentStart)
+-                return this.yieldBuf(buffer.findChild(parentStart, this.index, -1, 0, 4 /* Side.DontCare */));
++                return this.yieldBuf(previousSiblingIndex(buffer, parentStart, this.index));
+         }
+         else {
+             let after = buffer.buffer[this.index + 3];

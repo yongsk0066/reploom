@@ -1,0 +1,55 @@
+--- a/vendor/oxc_sourcemap/src/encode.rs
++++ b/vendor/oxc_sourcemap/src/encode.rs
+@@ -27,6 +27,11 @@
+ }
+ 
+ pub fn encode_to_string(sourcemap: &SourceMap<'_>) -> String {
++    encode_to_string_with_generated_line_offset(sourcemap, 0)
++}
++
++pub fn encode_to_string_with_generated_line_offset(sourcemap: &SourceMap<'_>, offset: u32) -> String {
++    let offset = if sourcemap.tokens.is_empty() { 0 } else { offset as usize };
+     // Reserve for worst-case string escaping and an estimate of the mappings.
+     // Large VLQ deltas can exceed the estimate; serialization reserves more as needed.
+     let mut estimated_capacity = 0usize;
+@@ -98,6 +103,7 @@
+     // ],"mappings":"
+     estimated_capacity += 14;
+     estimated_capacity += estimate_mappings_length(sourcemap);
++    estimated_capacity += offset;
+ 
+     // Optional ,"debugId":<escaped>
+     if let Some(debug_id) = sourcemap.get_debug_id() {
+@@ -147,6 +153,8 @@
+     }
+ 
+     contents.push("],\"mappings\":\"");
++    let mappings = contents.as_mut_vec();
++    mappings.resize(mappings.len() + offset, b';');
+     serialize_sourcemap_mappings(sourcemap, &mut contents);
+     contents.push("\"");
+ 
+--- a/vendor/oxc_sourcemap/src/sourcemap.rs
++++ b/vendor/oxc_sourcemap/src/sourcemap.rs
+@@ -3,7 +3,7 @@
+ use crate::{
+     LookupCursor, SourceViewToken,
+     decode::{JSONSourceMap, decode, decode_from_string},
+-    encode::{encode, encode_to_string},
++    encode::{encode, encode_to_string, encode_to_string_with_generated_line_offset},
+     error::Result,
+     token::{Token, TokenChunk},
+ };
+@@ -87,6 +87,12 @@
+         encode_to_string(self)
+     }
+ 
++    /// Serialize with an unmapped generated prefix, without copying or rewriting tokens.
++    /// Existing chunk deltas and original source coordinates remain unchanged.
++    pub fn to_json_string_with_generated_line_offset(&self, offset: u32) -> String {
++        encode_to_string_with_generated_line_offset(self, offset)
++    }
++
+     /// Convert `SourceMap` to vlq sourcemap data url.
+     pub fn to_data_url(&self) -> String {
+         let base_64_str = base64_simd::STANDARD.encode_to_string(self.to_json_string().as_bytes());

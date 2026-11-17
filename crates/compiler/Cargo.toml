@@ -1,0 +1,55 @@
+[package]
+name = "playground-compiler"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+base64 = "=0.23.1"
+oxc_diagnostics = "=0.159.0"
+oxc_allocator = "=0.159.0"
+oxc_ast = "=0.159.0"
+oxc_ast_visit = "=0.159.0"
+oxc_codegen = "=0.159.0"
+oxc_parser = "=0.159.0"
+oxc_semantic = "=0.159.0"
+oxc_sourcemap = "=10.0.0"
+oxc_span = "=0.159.0"
+oxc_syntax = "=0.159.0"
+oxc_transformer = "=0.159.0"
+oxc_traverse = "=0.159.0"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+panic = "abort"
+
+[patch.crates-io]
+oxc_parser = { path = "../../vendor/oxc_parser" }
+oxc_sourcemap = { path = "../../vendor/oxc_sourcemap" }
+oxc_allocator = { git = "https://github.com/oxc-project/oxc", rev = "414532b1d0e1485ed8478c919d29c66c3dfc9946" }
+oxc_ast = { git = "https://github.com/oxc-project/oxc", rev = "414532b1d0e1485ed8478c919d29c66c3dfc9946" }
+oxc_ast_macros = { git = "https://github.com/oxc-project/oxc", rev = "414532b1d0e1485ed8478c919d29c66c3dfc9946" }
+oxc_ast_visit = { git = "https://github.com/oxc-project/oxc", rev = "414532b1d0e1485ed8478c919d29c66c3dfc9946" }
+oxc_codegen = { git = "https://github.com/oxc-project/oxc", rev = "414532b1d0e1485ed8478c919d29c66c3dfc9946" }
+oxc_compat = { git = "https://github.com/oxc-project/oxc", rev = "414532b1d0e1485ed8478c919d29c66c3dfc9946" }
+oxc_data_structures = { git = "https://github.com/oxc-project/oxc", rev = "414532b1d0e1485ed8478c919d29c66c3dfc9946" }
+oxc_diagnostics = { git = "https://github.com/oxc-project/oxc", rev = "414532b1d0e1485ed8478c919d29c66c3dfc9946" }
+oxc_ecmascript = { git = "https://github.com/oxc-project/oxc", rev = "414532b1d0e1485ed8478c919d29c66c3dfc9946" }
+oxc_estree = { git = "https://github.com/oxc-project/oxc", rev = "414532b1d0e1485ed8478c919d29c66c3dfc9946" }
+oxc_regular_expression = { git = "https://github.com/oxc-project/oxc", rev = "414532b1d0e1485ed8478c919d29c66c3dfc9946" }
+oxc_semantic = { git = "https://github.com/oxc-project/oxc", rev = "414532b1d0e1485ed8478c919d29c66c3dfc9946" }
+oxc_span = { git = "https://github.com/oxc-project/oxc", rev = "414532b1d0e1485ed8478c919d29c66c3dfc9946" }
+oxc_str = { git = "https://github.com/oxc-project/oxc", rev = "414532b1d0e1485ed8478c919d29c66c3dfc9946" }
+oxc_syntax = { git = "https://github.com/oxc-project/oxc", rev = "414532b1d0e1485ed8478c919d29c66c3dfc9946" }
+oxc_transformer = { git = "https://github.com/oxc-project/oxc", rev = "414532b1d0e1485ed8478c919d29c66c3dfc9946" }
+oxc_traverse = { git = "https://github.com/oxc-project/oxc", rev = "414532b1d0e1485ed8478c919d29c66c3dfc9946" }
+
+[patch."https://github.com/oxc-project/oxc"]
+oxc_parser = { path = "../../vendor/oxc_parser" }

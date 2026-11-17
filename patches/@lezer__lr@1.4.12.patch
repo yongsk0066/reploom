@@ -1,0 +1,82 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index ce9c70a38e489fdd0bdade8bbfd2330f2456cf24..c58e0809b8767dc4f939eccbb544d60d5722f0c1 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -966,6 +966,17 @@ class ExternalTokenizer {
+         this.extend = !!options.extend;
+     }
+ }
++// Keep the stable string scan separate from the token-state interpreter so
++// engines can optimize its loop independently of the parser's other branches.
++function scanCharacterRun(chunk, offset, from, to) {
++    let end = offset + 1, length = chunk.length;
++    while (end < length) {
++        let code = chunk.charCodeAt(end);
++        if (code < from || code >= to) break;
++        end++;
++    }
++    return end - offset;
++}
+ // Tokenizer data is stored a big uint16 array containing, for each
+ // state:
+ //
+@@ -1021,8 +1032,16 @@ function readToken(data, input, stack, group, precTable, precOffset) {
+             else if (next >= to)
+                 low = mid + 1;
+             else {
+-                state = data[index + 2];
+-                input.advance();
++                let target = data[index + 2], count = 1;
++                if (target == state) {
++                    count = scanCharacterRun(input.chunk, input.chunkOff, from, to);
++                    // advance() returns early at EOF; retain the same dependency
++                    // on all consumed input that scalar advancement would record.
++                    if (input.pos + count > input.token.lookAhead)
++                        input.token.lookAhead = input.pos + count;
++                }
++                state = target;
++                input.advance(count);
+                 continue scan;
+             }
+         }
+diff --git a/dist/index.js b/dist/index.js
+index 119fe17fa0ef2c6045259b8a56c68581e68076c9..5d962af11873e998318192edb94f1fe69f9f1455 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -964,6 +964,17 @@ class ExternalTokenizer {
+         this.extend = !!options.extend;
+     }
+ }
++// Keep the stable string scan separate from the token-state interpreter so
++// engines can optimize its loop independently of the parser's other branches.
++function scanCharacterRun(chunk, offset, from, to) {
++    let end = offset + 1, length = chunk.length;
++    while (end < length) {
++        let code = chunk.charCodeAt(end);
++        if (code < from || code >= to) break;
++        end++;
++    }
++    return end - offset;
++}
+ // Tokenizer data is stored a big uint16 array containing, for each
+ // state:
+ //
+@@ -1019,8 +1030,16 @@ function readToken(data, input, stack, group, precTable, precOffset) {
+             else if (next >= to)
+                 low = mid + 1;
+             else {
+-                state = data[index + 2];
+-                input.advance();
++                let target = data[index + 2], count = 1;
++                if (target == state) {
++                    count = scanCharacterRun(input.chunk, input.chunkOff, from, to);
++                    // advance() returns early at EOF; retain the same dependency
++                    // on all consumed input that scalar advancement would record.
++                    if (input.pos + count > input.token.lookAhead)
++                        input.token.lookAhead = input.pos + count;
++                }
++                state = target;
++                input.advance(count);
+                 continue scan;
+             }
+         }

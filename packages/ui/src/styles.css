@@ -1,0 +1,189 @@
+.reploom {
+  color: var(--reploom-text, #e4e4e7);
+  background: var(--reploom-background, #18181b);
+  border: 1px solid var(--reploom-border, #3f3f46);
+  border-radius: 12px;
+  margin: 2.5rem 0;
+  overflow: hidden;
+}
+.reploom-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1.25rem 1.25rem 0;
+}
+.reploom-heading h2 {
+  font-size: 1.15rem;
+  margin: 0;
+}
+.reploom-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.reploom button,
+.reploom select {
+  font: inherit;
+  color: inherit;
+  background: #27272a;
+  border: 1px solid #71717a;
+  border-radius: 5px;
+  padding: 0.5rem 0.75rem;
+  min-height: 40px;
+}
+.reploom button {
+  cursor: pointer;
+}
+.reploom button:hover {
+  background: #3f3f46;
+}
+.reploom button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.reploom :is(button, select, textarea):focus-visible {
+  outline: 2px solid #a5b4fc;
+  outline-offset: 3px;
+}
+.reploom-hint {
+  color: #d4d4d8;
+  font-size: 0.875rem;
+  padding: 0 1.25rem;
+}
+.reploom-panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  border-block: 1px solid var(--reploom-border, #3f3f46);
+}
+.reploom-file-picker {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+}
+.reploom-file-picker select {
+  min-width: 0;
+  max-width: 100%;
+}
+.reploom-source-label {
+  display: block;
+  color: #d4d4d8;
+  font-size: 0.8rem;
+  padding: 0 1rem 0.5rem;
+}
+.reploom-editor textarea {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  height: 390px;
+  resize: vertical;
+  background: #111113;
+  color: #e4e4e7;
+  border: 0;
+  padding: 1rem;
+  font:
+    13px/1.65 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+}
+.reploom-editor {
+  min-width: 0;
+}
+.reploom-code-editor .cm-editor {
+  height: 390px;
+  font-size: 13px;
+}
+.reploom-code-editor .cm-scroller {
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  line-height: 1.65;
+}
+.reploom-code-editor .cm-editor.cm-focused {
+  outline: 2px solid #a5b4fc;
+  outline-offset: -2px;
+}
+.reploom-code-editor .cm-content {
+  padding-block: 12px;
+}
+.reploom-source-preview {
+  box-sizing: border-box;
+  height: 340px;
+  overflow: auto;
+  margin: 0;
+  padding: 1rem;
+  background: #111113;
+  color: #e4e4e7;
+  font:
+    13px/1.65 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  tab-size: 2;
+  white-space: pre;
+}
+.reploom-preview {
+  background: white;
+  color: #18181b;
+  min-width: 0;
+}
+.reploom-preview-label {
+  background: #27272a;
+  color: #e4e4e7;
+  padding: 1rem;
+  margin: 0;
+  font-size: 0.875rem;
+}
+.reploom-preview iframe {
+  display: block;
+  width: 100%;
+  height: 420px;
+  border: 0;
+}
+.reploom-status {
+  margin: 0.75rem 1.25rem;
+  font-size: 0.875rem;
+  color: #d4d4d8;
+}
+.reploom-errors {
+  background: #381b22;
+  color: #fecdd3;
+  padding: 1rem;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+}
+.reploom-console {
+  border-top: 1px solid #3f3f46;
+  padding: 0.75rem 1.25rem;
+}
+.reploom-console summary {
+  cursor: pointer;
+}
+.reploom-console pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+  max-height: 180px;
+  overflow: auto;
+}
+.reploom-loading {
+  padding: 1rem;
+}
+@media (max-width: 760px) {
+  .reploom-panes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .reploom-editor textarea,
+  .reploom-code-editor .cm-editor {
+    height: 300px;
+  }
+  .reploom-preview iframe {
+    height: 320px;
+  }
+}

@@ -1,0 +1,163 @@
+--- a/vendor/oxc_parser/src/lib.rs
++++ b/vendor/oxc_parser/src/lib.rs
+@@ -268,6 +268,15 @@
+     ///
+     /// Default: `true`
+     pub enable_ident_hashes: bool,
++
++    /// Speculative type-argument depth at which delimiter lookahead starts.
++    /// This is a performance threshold, not a grammar nesting limit.
++    pub type_argument_lookahead_depth: u32,
++
++    /// Maximum active recursive type parses, including speculative paths.
++    /// Exhaustion returns a diagnostic that survives speculative rewinds.
++    /// Defaults to unlimited.
++    pub max_type_depth: u32,
+ }
+ 
+ impl Default for ParseOptions {
+@@ -279,6 +288,8 @@
+             preserve_parens: true,
+             allow_v8_intrinsics: false,
+             enable_ident_hashes: true,
++            type_argument_lookahead_depth: 128,
++            max_type_depth: u32::MAX,
+         }
+     }
+ }
+--- a/vendor/oxc_parser/src/state.rs
++++ b/vendor/oxc_parser/src/state.rs
+@@ -13,6 +13,11 @@
+ }
+ 
+ pub struct ParserState<'a> {
++    pub type_depth: u32,
++
++    /// Resource exhaustion survives speculative rewinds; it is not a grammar rejection.
++    pub type_depth_exceeded: Option<Span>,
++
+     /// Positions of `(` tokens whose `( … ) : Type =>` continuation was rejected as an arrow
+     /// function, so that enclosing speculation does not try the same return type twice.
+     pub not_parenthesized_arrow: FxHashSet<u32>,
+@@ -76,6 +81,8 @@
+ impl<'a> ParserState<'a> {
+     pub fn new(allocator: &'a Allocator) -> Self {
+         Self {
++            type_depth: 0,
++            type_depth_exceeded: None,
+             not_parenthesized_arrow: FxHashSet::default(),
+             cover_elements: ArenaVec::new_in(&allocator),
+             mentions_await: false,
+--- a/vendor/oxc_parser/src/cursor.rs
++++ b/vendor/oxc_parser/src/cursor.rs
+@@ -370,6 +370,9 @@
+         self.prev_token_end = prev_token_end;
+         self.errors.truncate(errors_pos);
+         self.state.cover_parenthesized.truncate(cover_parenthesized_len);
++        if let Some(span) = self.state.type_depth_exceeded {
++            self.set_fatal_error(crate::diagnostics::type_depth_limit(span, self.options.max_type_depth));
++        }
+     }
+ 
+     pub(crate) fn lookahead<U>(&mut self, predicate: impl Fn(&mut ParserImpl<'a, C>) -> U) -> U {
+--- a/vendor/oxc_parser/src/diagnostics.rs
++++ b/vendor/oxc_parser/src/diagnostics.rs
+@@ -87,6 +87,11 @@
+ }
+ 
+ parser_diagnostics! {
++    type_depth_limit(span: Span, limit: u32) => {
++        OxcDiagnostic::error(format!("Type syntax exceeds the compiler nesting budget ({limit})"))
++            .with_label(span)
++    };
++
+     overlong_source() => {
+         OxcDiagnostic::error("Source length exceeds 4 GiB limit")
+     };
+--- a/vendor/oxc_parser/src/ts/type_arguments.rs
++++ b/vendor/oxc_parser/src/ts/type_arguments.rs
+@@ -30,11 +30,6 @@
+ use rustc_hash::{FxHashMap, FxHashSet};
+ 
+ use crate::{Context, ParserConfig as Config, ParserImpl, lexer::Kind};
+-
+-/// Let ordinary generics parse without an extra scan, but bound the recursive prefix
+-/// before checking whether deeper speculation can actually close.
+-/// This is a performance threshold, not a grammar limit on valid nesting.
+-pub(super) const TYPE_ARGUMENT_LOOKAHEAD_DEPTH: u32 = 128;
+ 
+ /// Failed nested speculation can repeat even without deep native-stack recursion.
+ const FAILURE_CACHE_DEPTH: u32 = 4;
+--- a/vendor/oxc_parser/src/ts/types.rs
++++ b/vendor/oxc_parser/src/ts/types.rs
+@@ -14,11 +14,33 @@
+ use super::{
+     super::js::FunctionKind,
+     statement::CallOrConstructorSignature,
+-    type_arguments::{TYPE_ARGUMENT_LOOKAHEAD_DEPTH, TypeArgumentFailure},
++    type_arguments::TypeArgumentFailure,
+ };
+ 
+ impl<'a, C: Config> ParserImpl<'a, C> {
+     pub(crate) fn parse_ts_type(&mut self) -> TSType<'a> {
++        self.with_type_depth(Self::parse_ts_type_impl)
++    }
++
++    #[expect(clippy::inline_always)]
++    #[inline(always)]
++    fn with_type_depth(&mut self, parse: impl FnOnce(&mut Self) -> TSType<'a>) -> TSType<'a> {
++        if self.options.max_type_depth == u32::MAX {
++            return parse(self);
++        }
++        if self.state.type_depth >= self.options.max_type_depth || self.state.type_depth_exceeded.is_some() {
++            let span = *self.state.type_depth_exceeded.get_or_insert(self.token.span());
++            return self.fatal_error(diagnostics::type_depth_limit(span, self.options.max_type_depth));
++        }
++        self.state.type_depth += 1;
++        let result = parse(self);
++        self.state.type_depth -= 1;
++        result
++    }
++
++    #[expect(clippy::inline_always)]
++    #[inline(always)]
++    fn parse_ts_type_impl(&mut self) -> TSType<'a> {
+         if self.is_start_of_function_type_or_constructor_type() {
+             return self.parse_function_or_constructor_type();
+         }
+@@ -340,7 +362,7 @@
+         let start = self.cur_start();
+         self.bump_any(); // bump operator
+         let operator_span = self.end_span(start);
+-        let ty = self.parse_type_operator_or_higher();
++        let ty = self.with_type_depth(Self::parse_type_operator_or_higher);
+         if operator == TSTypeOperatorOperator::Readonly
+             && !matches!(ty, TSType::TSArrayType(_))
+             && !matches!(ty, TSType::TSTupleType(_))
+@@ -964,7 +986,7 @@
+         let context = self.ctx;
+         if self.state.type_argument_lookahead.as_ref().is_some_and(|lookahead| {
+             lookahead.has_failed(start, context, TypeArgumentFailure::Type)
+-        }) || (depth >= TYPE_ARGUMENT_LOOKAHEAD_DEPTH
++        }) || (depth >= self.options.type_argument_lookahead_depth
+             && !self.speculative_type_arguments_can_close())
+         {
+             // We are still at an opening `<`, so expecting `>` marks this attempt fatal.
+@@ -1040,7 +1062,7 @@
+             return None;
+         }
+         let depth = self.state.type_argument_depth;
+-        if depth >= TYPE_ARGUMENT_LOOKAHEAD_DEPTH && !self.speculative_type_arguments_can_close() {
++        if depth >= self.options.type_argument_lookahead_depth && !self.speculative_type_arguments_can_close() {
+             return None;
+         }
+         let start = self.cur_start();
+@@ -1937,7 +1959,7 @@
+     fn parse_js_doc_non_nullable_type(&mut self) -> TSType<'a> {
+         let start = self.cur_start();
+         self.bump_any(); // bump `!`
+-        let ty = self.parse_non_array_type();
++        let ty = self.with_type_depth(Self::parse_non_array_type);
+         TSType::new_js_doc_non_nullable_type(
+             self.end_span(start),
+             ty,

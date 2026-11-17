@@ -1,0 +1,12 @@
+{
+  "package": "@codemirror/state",
+  "version": "6.7.6",
+  "repository": "https://code.haverbeke.berlin/codemirror/state",
+  "commit": "651084c8a322b3a19b2bb3e00eee7d4a61d641af",
+  "tag": "6.7.6",
+  "files": {
+    "src/text.ts": "796d710e2c3eacce60a31253e97d60b5e0d38851a3ff7caa05c86f4ee41b0fc3",
+    "src/change.ts": "0b300240e4d99fd433b8a545a33b093a8f4034b0818de56a9d26ab4cd094abf6",
+    "LICENSE": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07"
+  }
+}

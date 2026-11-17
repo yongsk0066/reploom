@@ -1,0 +1,48 @@
+--- a/vendor/oxc_parser/src/module_record.rs
++++ b/vendor/oxc_parser/src/module_record.rs
+@@ -1,3 +1,5 @@
++use rustc_hash::FxHashMap;
++
+ use oxc_allocator::{Allocator, ArenaVec};
+ use oxc_ast::ast::*;
+ use oxc_data_structures::buffered_vec::BufferedVec;
+@@ -141,6 +143,9 @@
+         module_record: &mut ModuleRecord<'a>,
+         mut export_entries: ArenaVec<'a, ExportEntry<'a>>,
+     ) {
++        if export_entries.is_empty() {
++            return;
++        }
+         if let Some(first) = export_entries.first() {
+             let is_star = first.import_name.is_all_but_default();
+             if export_entries.iter().all(|entry| {
+@@ -157,6 +162,11 @@
+             }
+         }
+ 
++        let mut imported_bindings = FxHashMap::default();
++        for (index, import) in module_record.import_entries.iter().enumerate() {
++            imported_bindings.entry(import.local_name.name).or_insert(index);
++        }
++
+         // Retain local exports in their original buffer, avoiding a second arena allocation.
+         // 10. For each ExportEntry Record ee of exportEntries, do
+         export_entries.retain_mut(|entry| {
+@@ -167,15 +177,12 @@
+                     // 1. Append ee to localExportEntries.
+                     return true;
+                 };
+-                let Some(import) = module_record
+-                    .import_entries
+-                    .iter()
+-                    .find(|import| import.local_name.name == local_name.name)
+-                else {
++                let Some(&index) = imported_bindings.get(&local_name.name) else {
+                     // i. If ee.[[LocalName]] is not an element of importedBoundNames, then
+                     // 1. Append ee to localExportEntries.
+                     return true;
+                 };
++                let import = &module_record.import_entries[index];
+                 // ii. Else,
+                 // 1. Let ie be the element of importEntries whose [[LocalName]] is the same as ee.[[LocalName]].
+                 let import_name = match &import.import_name {

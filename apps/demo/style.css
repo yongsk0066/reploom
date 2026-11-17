@@ -1,0 +1,35 @@
+:root {
+  color-scheme: dark;
+  font: 16px/1.5 system-ui;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+body {
+  margin: 0;
+}
+.gallery {
+  max-width: 1200px;
+  margin: auto;
+  padding: 24px 16px;
+}
+.gallery-heading {
+  margin-bottom: 24px;
+}
+.gallery-heading h1 {
+  font-size: 28px;
+  margin-bottom: 4px;
+}
+.gallery-heading p {
+  color: #94a3b8;
+}
+.gallery-heading label {
+  display: block;
+  margin-bottom: 6px;
+}
+.gallery-heading select {
+  width: min(100%, 440px);
+  font: inherit;
+  padding: 10px;
+  border: 1px solid #475569;
+  border-radius: 8px;
+}

@@ -1,0 +1,166 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error"
+  },
+  "plugins": ["unicorn", "typescript", "oxc", "import"],
+  "jsPlugins": ["@stylistic/eslint-plugin"],
+  "rules": {
+    "one-var": ["error", "never"],
+    "import/no-cycle": "error",
+    "@stylistic/padding-line-between-statements": [
+      "error",
+      {
+        "blankLine": "always",
+        "prev": "*",
+        "next": ["function", "class", "interface", "type", "export"]
+      },
+      {
+        "blankLine": "always",
+        "prev": ["function", "class", "interface", "type", "export"],
+        "next": "*"
+      },
+      {
+        "blankLine": "always",
+        "prev": "multiline-const",
+        "next": "*"
+      },
+      {
+        "blankLine": "always",
+        "prev": "*",
+        "next": "multiline-const"
+      },
+      {
+        "blankLine": "always",
+        "prev": "import",
+        "next": "*"
+      },
+      {
+        "blankLine": "any",
+        "prev": "import",
+        "next": "import"
+      }
+    ],
+    "@stylistic/lines-between-class-members": [
+      "error",
+      {
+        "enforce": [
+          {
+            "blankLine": "always",
+            "prev": "*",
+            "next": "method"
+          },
+          {
+            "blankLine": "always",
+            "prev": "method",
+            "next": "*"
+          }
+        ]
+      }
+    ]
+  },
+  "ignorePatterns": [
+    "packages/ui/vendor/**",
+    "**/dist/**",
+    "**/compiler/compiler.wasm",
+    "docs/**",
+    "packages/runtime/compiler/**",
+    "tests/fixtures/regression/projects/**"
+  ],
+  "env": {
+    "browser": true,
+    "node": true,
+    "worker": true
+  },
+  "overrides": [
+    {
+      "files": ["packages/runtime/src/**/*.ts", "packages/ui/src/**/*.{ts,tsx}"],
+      "rules": {
+        "complexity": [
+          "error",
+          {
+            "max": 20,
+            "variant": "modified"
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/runtime/src/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^(react(?:-dom)?(?:/|$)|@codemirror/|@yongsk0066/reploom-ui(?:/|$))",
+                "message": "The headless runtime receives framework behavior through adapters; keep UI dependencies in the UI package."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/runtime/src/project/**/*.ts", "packages/runtime/src/shared/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^(react(?:-dom)?(?:/|$)|@codemirror/|@yongsk0066/reploom-ui(?:/|$))",
+                "message": "The headless runtime receives framework behavior through adapters; keep UI dependencies in the UI package."
+              },
+              {
+                "regex": "(?:^|/)(?:browser|compiler|execution)/",
+                "message": "Project state and shared contracts must not create browser, compiler, or execution services. Inject them through SessionServices.",
+                "allowTypeImports": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/runtime/src/compiler/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^(react(?:-dom)?(?:/|$)|@codemirror/|@yongsk0066/reploom-ui(?:/|$))",
+                "message": "The headless runtime receives framework behavior through adapters; keep UI dependencies in the UI package."
+              },
+              {
+                "regex": "(?:^|/)(?:browser|execution)/",
+                "message": "The compiler publishes artifacts through its protocol; it must not depend on a preview or browser host."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/runtime/src/execution/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^(react(?:-dom)?(?:/|$)|@codemirror/|@yongsk0066/reploom-ui(?:/|$))",
+                "message": "The headless runtime receives framework behavior through adapters; keep UI dependencies in the UI package."
+              },
+              {
+                "regex": "(?:^|/)(?:browser|compiler)/",
+                "message": "Execution consumes prepared artifacts; compiler and host state belong to separate owners."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
