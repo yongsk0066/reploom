@@ -34,7 +34,9 @@ for (const [name, contents] of Object.entries(entries)) {
   const react = inputs.some((input) => /(?:^|\/)node_modules\/react(?:-dom)?\//.test(input));
 
   const codemirror = inputs.some((input) =>
-    /@codemirror\/|(?:packages\/ui|reploom-ui)\/dist\/codemirror\/editor\.js$/.test(input),
+    /@codemirror\/|(?:packages\/ui|reploom-ui)\/dist\/(?:codemirror\/editor\.js|editor\.js|chunks\/editor-[^/]+\.js)$/.test(
+      input,
+    ),
   );
 
   if (name === "headless") {
@@ -60,16 +62,44 @@ for (const [name, contents] of Object.entries(entries)) {
 
   for (const input of own) visit(input);
 
+  const outputs = new Map(
+    Object.entries(result.metafile.outputs).map(([filename, output]) => [
+      path.resolve(root, filename),
+      output,
+    ]),
+  );
+
+  const initial = new Set();
+
+  function includeInitial(filename) {
+    if (initial.has(filename)) return;
+    initial.add(filename);
+    const output = outputs.get(filename);
+    assert.ok(output, `Missing static output: ${filename}`);
+    for (const dependency of output.imports)
+      if (!dependency.external && dependency.kind !== "dynamic-import")
+        includeInitial(path.resolve(root, dependency.path));
+  }
+
+  for (const [filename, output] of outputs)
+    if (output.entryPoint === "<stdin>") includeInitial(filename);
+  assert.ok(initial.size, "Public entry must have an initial output graph");
+
   const files = result.outputFiles.map((file) => ({
     name: path.basename(file.path),
     bytes: file.contents.byteLength,
     gzipBytes: gzipSync(file.contents).byteLength,
+    initial: initial.has(file.path),
   }));
 
   results[name] = {
     files,
     totalBytes: files.reduce((n, file) => n + file.bytes, 0),
     gzipBytes: files.reduce((n, file) => n + file.gzipBytes, 0),
+    initialBytes: files.filter((file) => file.initial).reduce((n, file) => n + file.bytes, 0),
+    initialGzipBytes: files
+      .filter((file) => file.initial)
+      .reduce((n, file) => n + file.gzipBytes, 0),
     react,
     codemirror,
     runtimeImportCycles: 0,

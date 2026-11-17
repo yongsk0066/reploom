@@ -189,7 +189,7 @@ const initialize = (event: MessageEvent) => {
           next.program.runtime !== "compute",
         );
         evaluator = createFactoryEvaluator(document, generation, resources);
-        for (const part of data.vendor) await evaluator.run(part);
+        await evaluator.runAll(data.vendor);
         const vendor = globalThis.__PLAYGROUND_VENDOR__;
         if (vendor.kind !== next.program.runtime) throw new Error("Runtime adapter mismatch.");
         execution = vendor.createExecution(document.getElementById("root")!, {

@@ -77,8 +77,8 @@ export type ProjectView = {
 export type LoadedProject = Seed & {
   checks?: readonly string[];
   typecheck?: boolean;
-  vendor: readonly string[];
-  worker?: readonly string[];
+  vendor: readonly import("../shared/protocol.ts").ScriptSource[];
+  worker?: readonly import("../shared/protocol.ts").ScriptSource[];
   bootstrap: string;
   assets?: ResourcePayloads;
   updateDelayMs?: number;

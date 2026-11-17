@@ -101,7 +101,7 @@ export function createTypecheckClient(
     if (!spec) throw new Error("Type checking was not prepared for this site");
 
     const [source, configuration, wasm] = await Promise.all([
-      repository.loadAsset(spec.worker, signal),
+      repository.loadScriptAsset(spec.worker, signal),
       repository.loadBinaryAsset({ ...spec.configuration, type: "application/json" }, signal),
       checkpoint?.module
         ? undefined
@@ -109,7 +109,7 @@ export function createTypecheckClient(
     ]);
 
     signal.throwIfAborted();
-    url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+    url = URL.createObjectURL(source);
     worker = options.createWorker
       ? options.createWorker(url)
       : new Worker(url, { type: "module", name: "reploom-typecheck" });

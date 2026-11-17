@@ -386,5 +386,102 @@ test("a failed project load cancels its sibling downloads while another project 
   assert.equal(signals.get("blocked").aborted, true);
   assert.equal(signals.get("shared").aborted, false);
   gates.get("shared").resolve();
-  assert.deepEqual((await successful).vendor, ["vendor"]);
+  assert.deepEqual(await Promise.all((await successful).vendor.map((part) => part.text())), [
+    "vendor",
+  ]);
+});
+
+test("verified JSON is parsed once, immutable across consumers, and isolated from text and binary views", async (t) => {
+  const body = JSON.stringify({ files: { "/a.ts": "export const value = 1" }, values: [1, 2] });
+  let calls = 0;
+  const asset = { url: "project.json", sha256: createHash("sha256").update(body).digest("hex") };
+
+  const repository = createAssetRepository({
+    manifestUrl: "https://fixture.test/assets/manifest.json",
+    fetch: async () => {
+      calls++;
+      return new Response(body);
+    },
+  });
+
+  t.after(() => repository.dispose());
+
+  const [first, second] = await Promise.all([
+    repository.loadJSONAsset(asset),
+    repository.loadJSONAsset(asset),
+  ]);
+
+  assert.equal(first, second);
+  assert.equal(await repository.loadJSONAsset(asset), first);
+  assert.equal(calls, 1);
+  assert.throws(() => {
+    first.files["/a.ts"] = "changed";
+  }, TypeError);
+  assert.throws(() => first.values.push(3), TypeError);
+  assert.equal(await repository.loadAsset(asset), body);
+  const binary = await repository.loadBinaryAsset({ ...asset, type: "text" });
+  assert.equal(new TextDecoder().decode(binary.bytes), body);
+  assert.equal(calls, 3);
+});
+
+test("JSON decoding failures retire their request and decoded cache entries obey the shared byte bound", async (t) => {
+  const bodies = [
+    "{",
+    ...Array.from({ length: 7 }, (_, i) => JSON.stringify({ value: String(i).repeat(700_000) })),
+  ];
+
+  const calls = bodies.map(() => 0);
+
+  const assets = bodies.map((body, i) => ({
+    url: String(i),
+    sha256: createHash("sha256").update(body).digest("hex"),
+  }));
+
+  const repository = createAssetRepository({
+    manifestUrl: "https://fixture.test/assets/manifest.json",
+    fetch: async (url) => {
+      const i = Number(new URL(url).pathname.split("/").at(-1));
+      calls[i]++;
+      return new Response(bodies[i]);
+    },
+  });
+
+  t.after(() => repository.dispose());
+  for (let i = 0; i < 2; i++)
+    await assert.rejects(repository.loadJSONAsset(assets[0]), SyntaxError);
+  assert.equal(calls[0], 2);
+  for (const asset of assets.slice(1)) await repository.loadJSONAsset(asset);
+  await repository.loadJSONAsset(assets.at(-1));
+  assert.equal(calls.at(-1), 1);
+  await repository.loadJSONAsset(assets[1]);
+  assert.equal(calls[1], 2);
+});
+
+test("prepared scripts retain immutable bytes and preserve them across structured cloning", async (t) => {
+  const body = "globalThis.example = '한글😀';";
+  const asset = { url: "runtime.js", sha256: createHash("sha256").update(body).digest("hex") };
+  let calls = 0;
+
+  const repository = createAssetRepository({
+    manifestUrl: "https://fixture.test/assets/manifest.json",
+    fetch: async () => {
+      calls++;
+      return new Response(body);
+    },
+  });
+
+  t.after(() => repository.dispose());
+
+  const [one, two] = await Promise.all([
+    repository.loadScriptAsset(asset),
+    repository.loadScriptAsset(asset),
+  ]);
+
+  assert.equal(one, two);
+  assert.equal(one.type, "text/javascript");
+  assert.equal(one.size, new TextEncoder().encode(body).byteLength);
+  const copy = structuredClone(one);
+  repository.dispose();
+  assert.equal(await copy.text(), body);
+  assert.equal(calls, 1);
 });

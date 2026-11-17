@@ -17,7 +17,7 @@ export type BrowserPlatform = ReturnType<typeof createBrowserPlatform>;
 
 export function createBrowserPlatform(options: BrowserPlatformOptions) {
   const repository = createAssetRepository(options);
-  const { loadAsset, loadBinaryAsset, loadManifest } = repository;
+  const { loadAsset, loadJSONAsset, loadScriptAsset, loadBinaryAsset, loadManifest } = repository;
   let client: CompilerClient | undefined;
   let opening: Promise<CompilerClient> | undefined;
   let disposed = false;
@@ -66,10 +66,10 @@ export function createBrowserPlatform(options: BrowserPlatformOptions) {
       const task = createSharedTask(
         async (signal) => {
           const manifest = await loadManifest(signal);
-          const code = await loadAsset(manifest.compilerWorker, signal);
+          const code = await loadScriptAsset(manifest.compilerWorker, signal);
           signal.throwIfAborted();
           assertOpen();
-          workerUrl = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
+          workerUrl = URL.createObjectURL(code);
         },
         {
           signal: lifetime.signal,
@@ -100,7 +100,7 @@ export function createBrowserPlatform(options: BrowserPlatformOptions) {
   }
 
   async function loadProgram(asset: import("../shared/protocol.ts").Asset, signal?: AbortSignal) {
-    const output = JSON.parse(await loadAsset(asset, signal)) as Compilation;
+    const output = await loadJSONAsset<Compilation>(asset, signal);
     if (output.schema !== PROGRAM_SCHEMA || output.abi !== MODULE_ABI)
       throw new Error("Unsupported module ABI.");
 
@@ -146,18 +146,16 @@ export function createBrowserPlatform(options: BrowserPlatformOptions) {
         if (!item) throw new Error("Project not found.");
 
         const [files, output, assets, vendor, bootstrap, worker] = await Promise.all([
-          loadAsset(item.sources, signal).then(
-            (source) => Object.freeze(JSON.parse(source)) as Files,
-          ),
+          loadJSONAsset<Files>(item.sources, signal),
           loadProgram(item.program, signal),
           loadResources(item.assets, signal),
-          Promise.all(item.vendor.map((asset) => loadAsset(asset, signal))).then<readonly string[]>(
-            Object.freeze,
-          ),
+          Promise.all(item.vendor.map((asset) => loadScriptAsset(asset, signal))).then<
+            readonly Blob[]
+          >(Object.freeze),
           loadAsset(manifest.bootstrap, signal),
           item.worker
-            ? Promise.all(item.worker.map((asset) => loadAsset(asset, signal))).then<
-                readonly string[]
+            ? Promise.all(item.worker.map((asset) => loadScriptAsset(asset, signal))).then<
+                readonly Blob[]
               >(Object.freeze)
             : undefined,
         ]);
@@ -180,11 +178,11 @@ export function createBrowserPlatform(options: BrowserPlatformOptions) {
           async compilerResources(signal?: AbortSignal) {
             signal?.throwIfAborted();
             if (resources) return resources;
-            const text = await loadAsset(item.configuration, signal);
+            const config = await loadJSONAsset<CompilerConfig>(item.configuration, signal);
             signal?.throwIfAborted();
             return (resources ??= {
               compiler: manifest.compiler,
-              config: ownCompilerConfig(JSON.parse(text) as CompilerConfig),
+              config: ownCompilerConfig(config),
             });
           },
         };

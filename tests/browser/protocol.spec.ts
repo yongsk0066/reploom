@@ -100,8 +100,14 @@ async function observe(context: BrowserContext) {
           base: data.patch?.baseRevision,
           revision: data.patch?.revision,
           changed: Object.keys(data.patch?.changed || {}),
-          vendorChars:
-            data.vendor?.reduce((total: number, part: string) => total + part.length, 0) || 0,
+          vendorBytes:
+            data.vendor?.reduce(
+              (total: number, part: string | Blob) =>
+                total +
+                (typeof part === "string" ? new TextEncoder().encode(part).byteLength : part.size),
+              0,
+            ) || 0,
+          vendorBlobs: data.vendor?.filter((part: unknown) => part instanceof Blob).length || 0,
           moduleChars: Object.values(data.patch?.changed || {}).reduce(
             (n: number, item: any) => n + (item.code?.length || item.data?.length || 0),
             0,
@@ -266,9 +272,12 @@ test("acknowledged deltas resynchronize without losing state; vendor initializes
     await page.locator("[data-project]").count(),
   );
   expect(
+    wire.posts.filter((p: any) => p.type === "initialize").every((p: any) => p.vendorBlobs > 0),
+  ).toBe(true);
+  expect(
     wire.posts
       .filter((p: any) => p.type === "apply-reference")
-      .every((p: any) => p.vendorChars === 0),
+      .every((p: any) => p.vendorBytes === 0),
   ).toBe(true);
   const artifacts = await preview.locator("body").evaluate(() => (window as any).__wire.artifacts);
   expect(artifacts.some((p: any) => p.changed.length === 1 && p.changed[0] === "/App.js")).toBe(

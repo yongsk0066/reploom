@@ -4,7 +4,7 @@
     "rootDir": "src",
     "outDir": "dist",
     "jsx": "react-jsx",
-    "types": ["react", "react-dom"]
+    "types": ["react"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

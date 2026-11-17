@@ -42,6 +42,10 @@ try {
     stdio: "pipe",
   });
   await cp(path.join(root, "tests/consumer"), consumer, { recursive: true });
+  execFileSync("pnpm", ["exec", "tsc", "--project", path.join(consumer, "tsconfig.json")], {
+    cwd: root,
+    stdio: "inherit",
+  });
   execFileSync("node", ["build.mjs"], { cwd: consumer, stdio: "inherit" });
   await cp(path.join(consumer, "dist"), path.join(root, "artifacts/browser-site/headless"), {
     recursive: true,

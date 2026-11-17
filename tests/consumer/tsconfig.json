@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "strict": true,
+    "skipLibCheck": false,
+    "types": [],
+    "noEmit": true
+  },
+  "files": ["types.ts"]
+}

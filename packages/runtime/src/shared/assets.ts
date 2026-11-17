@@ -42,6 +42,25 @@ export type AssetRepositoryOptions = {
   downloadTimeoutMs?: number;
 };
 
+function immutableJSON(bytes: ArrayBuffer) {
+  const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
+  const pending = [value];
+  let size = 0;
+  while (pending.length) {
+    const item = pending.pop();
+    if (typeof item === "string") size += item.length * 2;
+    else if (item && typeof item === "object") {
+      size += 64;
+      for (const [key, entry] of Object.entries(item)) {
+        size += key.length * 2 + 16;
+        pending.push(entry);
+      }
+      Object.freeze(item);
+    } else size += 8;
+  }
+  return { value, size };
+}
+
 /** A repository owns its requests and bounded immutable asset cache. */
 export function createAssetRepository(options: AssetRepositoryOptions) {
   let manifest: ReturnType<typeof createSharedTask<Manifest>> | undefined;
@@ -54,7 +73,7 @@ export function createAssetRepository(options: AssetRepositoryOptions) {
   const request = options.fetch ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
 
   type CachedAsset = {
-    task: ReturnType<typeof createSharedTask<string | BinaryAsset>>;
+    task: ReturnType<typeof createSharedTask<unknown>>;
     bytes: number;
     settled: boolean;
   };
@@ -136,13 +155,14 @@ export function createAssetRepository(options: AssetRepositoryOptions) {
 
   function loadVerified(
     asset: Asset,
-    type?: string,
+    format: "text" | "json" | "binary" | "script",
+    type: string,
     signal?: AbortSignal,
-  ): Promise<string | BinaryAsset> {
+  ): Promise<unknown> {
     assertOpen();
     signal?.throwIfAborted();
     const url = assetURL(asset.url);
-    const key = asset.sha256 + ":" + (type || "text");
+    const key = `${asset.sha256}:${format}:${type}`;
     const cached = assets.get(key);
     if (cached) {
       assets.delete(key);
@@ -164,11 +184,19 @@ export function createAssetRepository(options: AssetRepositoryOptions) {
         assertOpen();
         if (hash !== asset.sha256) throw new Error("Asset integrity mismatch; reload the page");
 
-        const value = type
-          ? { bytes: new Uint8Array(bytes), type }
-          : new TextDecoder().decode(bytes);
+        const decoded = format === "json" ? immutableJSON(bytes) : undefined;
 
-        const size = typeof value === "string" ? value.length * 2 : bytes.byteLength;
+        const value = decoded
+          ? decoded.value
+          : format === "script"
+            ? new Blob([bytes], { type: "text/javascript" })
+            : format === "binary"
+              ? { bytes: new Uint8Array(bytes), type }
+              : new TextDecoder().decode(bytes);
+
+        const size =
+          decoded?.size ?? (typeof value === "string" ? value.length * 2 : bytes.byteLength);
+
         // Oversized results belong to their consumers, not the settled cache.
         if (size > maxCacheBytes) {
           assets.delete(key);
@@ -194,9 +222,13 @@ export function createAssetRepository(options: AssetRepositoryOptions) {
   return {
     loadManifest,
     loadAsset: (asset: Asset, signal?: AbortSignal) =>
-      loadVerified(asset, undefined, signal) as Promise<string>,
+      loadVerified(asset, "text", "", signal) as Promise<string>,
+    loadJSONAsset: <T>(asset: Asset, signal?: AbortSignal) =>
+      loadVerified(asset, "json", "", signal) as Promise<T>,
+    loadScriptAsset: (asset: Asset, signal?: AbortSignal) =>
+      loadVerified(asset, "script", "", signal) as Promise<Blob>,
     loadBinaryAsset: (asset: Asset & { type: string }, signal?: AbortSignal) =>
-      loadVerified(asset, asset.type, signal) as Promise<BinaryAsset>,
+      loadVerified(asset, "binary", asset.type, signal) as Promise<BinaryAsset>,
     dispose() {
       if (disposed) return;
       disposed = true;

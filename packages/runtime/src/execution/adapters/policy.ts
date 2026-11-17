@@ -59,7 +59,7 @@ export type ExecutionEnvironment = {
   onDiagnostic(diagnostics: Diagnostic[]): void;
   onInvalidate(id: string): void;
   onConsole(text: string): void;
-  worker?: readonly string[];
+  worker?: readonly import("../../shared/protocol.ts").ScriptSource[];
   assets?: ResourcePayloads;
   resources?: ResourceAccess;
 };

@@ -19,9 +19,11 @@ The [UI package](../packages/ui/package.json) supplies the optional editor and R
 | `@lezer/common` | Syntax trees, fragments, traversal, and shared parser contracts |
 | `@lezer/lr` | Incremental LR parser engine |
 | `@lezer/javascript`, `css`, `json` | Language grammars used by editor parsing and the language Worker |
-| `react`, `react-dom` | Optional peers for the React wrapper; also used by prepared React examples |
+| `react` | Optional peer used by the React wrapper |
 
-The UI build bundles its CodeMirror and Lezer dependency closure, including the workspace's verified patches. React remains an optional peer. A headless consumer can supply a different view and editor; the headless entry points exclude both React and CodeMirror. React examples still load React inside their preview.
+The UI build bundles its CodeMirror and Lezer dependency closure, including the workspace's verified patches. These are build dependencies: installing the UI package does not install a second copy of those libraries. Both public UI entries share the same editor chunk, and public editor declarations use Reploom-owned interfaces without importing CodeMirror types. The published archive contains the emitted entry graph, its reachable declarations, styles, Worker source, and license notices.
+
+React remains an optional peer supplied by the host. The wrapper does not import ReactDOM; the host renderer owns mounting. Prepared React examples use their declared React and ReactDOM dependencies inside the isolated preview. That realm needs its own framework instance, independently of the host UI. A headless consumer can supply a different view and editor; the headless entry points exclude both React and CodeMirror.
 
 ## Asset preparation
 

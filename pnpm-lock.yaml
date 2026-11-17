@@ -304,6 +304,10 @@ importers:
 
   packages/ui:
     dependencies:
+      '@yongsk0066/reploom':
+        specifier: workspace:*
+        version: link:../runtime
+    devDependencies:
       '@codemirror/commands':
         specifier: 6.11.1
         version: 6.11.1
@@ -343,22 +347,12 @@ importers:
       '@lezer/lr':
         specifier: 1.4.12
         version: 1.4.12(patch_hash=b60521fca228478957bddf8b4bfbe1db3d3852a419b0cc4193a3440f9a568b2b)
-      '@yongsk0066/reploom':
-        specifier: workspace:*
-        version: link:../runtime
-    devDependencies:
       '@types/react':
         specifier: 19.3.0
         version: 19.3.0
-      '@types/react-dom':
-        specifier: 19.3.0
-        version: 19.3.0(@types/react@19.3.0)
       react:
         specifier: 19.3.1
         version: 19.3.1
-      react-dom:
-        specifier: 19.3.1
-        version: 19.3.1(react@19.3.1)
 
   tests:
     devDependencies:

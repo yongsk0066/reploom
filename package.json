@@ -24,6 +24,7 @@
     "test:performance": "REPLOOM_PERFORMANCE_GATES=1 pnpm test:browser tests/browser/execution.spec.ts",
     "lint:fix": "oxlint --fix packages scripts tests apps/demo crates/compiler/engine.mjs benchmarks",
     "bench:runtime": "pnpm --filter @reploom/benchmarks run runtime",
+    "bench:loading": "pnpm --filter @reploom/benchmarks run loading",
     "bench:browser": "pnpm --filter @reploom/benchmarks run browser",
     "bench:bindings": "pnpm --filter @reploom/benchmarks run bindings",
     "bench:parser": "pnpm --filter @reploom/benchmarks run parser",

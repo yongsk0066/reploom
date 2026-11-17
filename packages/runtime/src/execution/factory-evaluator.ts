@@ -1,6 +1,7 @@
 import type { FactoryLoader, ModuleFactory } from "./module-runtime.ts";
 import type { RealmResources } from "./resources.ts";
 import { createDebugLocations } from "./debug-locations.ts";
+import type { ScriptSource } from "../shared/protocol.ts";
 
 // Classic factories avoid native ESM's permanent per-URL module cache.
 export function createFactoryEvaluator(
@@ -30,17 +31,26 @@ export function createFactoryEvaluator(
   Reflect.deleteProperty(globalThis, probe);
   const pending = new Set<(error?: Error) => void>();
   const vendorURLs = new Set<string>();
+  let disposed = false;
 
   function run(
-    code: string,
+    code: ScriptSource,
     identify?: (url: string, release: () => void) => void,
   ): void | Promise<void> {
-    if (located) return inline(code);
+    if (disposed) throw new Error("Evaluator disposed");
+    if (located) {
+      if (typeof code === "string") return inline(code);
+      return code.text().then((text) => run(text, identify));
+    }
     // WebKit mutes opaque-frame inline errors and ignores their sourceURL.
     // A same-realm Blob script has a real source URL and reports full errors.
     return new Promise((resolve, reject) => {
       const script = document.createElement("script");
-      const url = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
+
+      const url = URL.createObjectURL(
+        typeof code === "string" ? new Blob([code], { type: "text/javascript" }) : code,
+      );
+
       const release = () => URL.revokeObjectURL(url);
       if (identify) identify(url, release);
       else vendorURLs.add(url);
@@ -69,7 +79,17 @@ export function createFactoryEvaluator(
   const evaluator = createRegisteredEvaluator(run, resources);
   return {
     ...evaluator,
+    async runAll(sources: readonly ScriptSource[]) {
+      const scripts = located
+        ? await Promise.all(
+            sources.map((source) => (typeof source === "string" ? source : source.text())),
+          )
+        : sources;
+
+      for (const script of scripts) await run(script);
+    },
     dispose() {
+      disposed = true;
       for (const finish of pending) finish(new Error("Evaluator disposed"));
       for (const url of vendorURLs) URL.revokeObjectURL(url);
       vendorURLs.clear();
@@ -99,7 +119,7 @@ export function createWorkerEvaluator(resources?: RealmResources) {
 
 function createRegisteredEvaluator(
   run: (
-    code: string,
+    code: ScriptSource,
     identify?: (url: string, release: () => void) => void,
   ) => void | Promise<void>,
   resources?: RealmResources,

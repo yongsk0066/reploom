@@ -39,4 +39,5 @@ export type {
   Diagnostic,
   CompilePriority,
   TestResult,
+  ScriptSource,
 } from "./shared/protocol.ts";

@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "loading": "node run.mjs loading.mjs",
     "runtime": "node run.mjs runtime.mjs",
     "browser": "node run.mjs browser.mjs",
     "bindings": "node run.mjs bindings.mjs",

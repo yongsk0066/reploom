@@ -41,7 +41,7 @@ You can also run preparation programmatically with `prepareProjects(options)`. R
 
 Publish the entire generated directory, including `manifest.json`, hashed assets, and license notices, at `/reploom/` on the page's origin. Serve `.wasm` files with `application/wasm` and `.mjs` files with a JavaScript MIME type, and exclude the directory from SPA HTML fallbacks.
 
-Regenerate these assets when upgrading Reploom packages. The current contract uses manifest schema 2, protocol 8, program schema 8, and module ABI 4. Deploy the matching runtime and prepared directory together.
+Regenerate these assets when upgrading Reploom packages. The current contract uses manifest schema 2, protocol 9, program schema 8, and module ABI 4. Deploy the matching runtime and prepared directory together.
 
 ## Use a headless session
 
@@ -72,6 +72,8 @@ async function dispose() {
 ```
 
 A platform manages the shared compiler Worker and verified asset cache across multiple sessions. Separate platforms keep their caches and Workers isolated even when project IDs match. Each session supports one active preview; during teardown, dispose previews and sessions before their shared platform. The `/internal/*` exports serve the build package and are not a supported integration API.
+
+Prepared sources and programs are shared immutable values. Session editing and file-transaction APIs create revisions while leaving those prepared values available to other sessions.
 
 `createBrowserPlatform` accepts `compilerLifetime: { maxMemoryBytes, minLifetimeMs, idleMs }`. Defaults are 64 MiB, 30 seconds, and 30 seconds. Memory pressure requests replacement at the next compile after the minimum lifetime, once pending work and artifact acknowledgements settle. The preview keeps running; only the compiler's sources and caches are reseeded. See [lifecycle](architecture.md#memory-and-lifecycle) for the ownership boundary.
 

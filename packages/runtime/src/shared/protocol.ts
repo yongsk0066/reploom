@@ -12,13 +12,16 @@ import type { ManagedState } from "../project/snapshot.ts";
 export type { Files } from "../project/definition.ts";
 
 // Reploom wire contract, independent of bundler-private helpers or a dev server.
-export const PROTOCOL = 8 as const;
+export const PROTOCOL = 9 as const;
 
 export const MODULE_ABI = 4 as const;
 
 export const PROGRAM_SCHEMA = 8 as const;
 
 export type Asset = { url: string; sha256: string };
+
+// Prepared scripts cross realms as immutable bytes; custom hosts may supply text.
+export type ScriptSource = string | Blob;
 
 export type Diagnostic = {
   text: string;
@@ -328,8 +331,8 @@ export type Snapshot = {
   revision: number;
   projectId?: string;
   generation: string;
-  vendor: readonly string[];
-  worker?: readonly string[];
+  vendor: readonly ScriptSource[];
+  worker?: readonly ScriptSource[];
   bootstrap: string;
   assets?: ResourcePayloads;
   state?: ManagedState;
@@ -391,8 +394,8 @@ export type PreviewCommand = Envelope &
   (
     | {
         type: "initialize";
-        vendor: readonly string[];
-        worker?: readonly string[];
+        vendor: readonly ScriptSource[];
+        worker?: readonly ScriptSource[];
         assets?: ResourcePayloads;
         state?: ManagedState;
         patch: ProgramPatch;
@@ -404,8 +407,8 @@ export type PreviewCommand = Envelope &
         revision: number;
         reference: ProgramReference;
         initialize?: {
-          vendor: readonly string[];
-          worker?: readonly string[];
+          vendor: readonly ScriptSource[];
+          worker?: readonly ScriptSource[];
           assets?: ResourcePayloads;
           state?: ManagedState;
         };

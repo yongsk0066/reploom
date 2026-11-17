@@ -10,6 +10,7 @@ import {
 } from "@lezer/common";
 import type { LRParser } from "@lezer/lr";
 import type { ViewUpdate } from "@codemirror/view";
+import type { LanguageAnalysisOptions } from "../options.ts";
 import {
   createTreeReceiver,
   type LanguageKind,
@@ -17,12 +18,7 @@ import {
   type ParseRequest,
 } from "./tree-channel.ts";
 
-export type LanguageAnalysisOptions = {
-  minCharacters?: number;
-  idleMs?: number;
-  createWorker?(signal: AbortSignal): Worker | Promise<Worker>;
-  onError?(error: unknown): void;
-};
+export type { LanguageAnalysisOptions } from "../options.ts";
 
 type Desired = {
   path: string;

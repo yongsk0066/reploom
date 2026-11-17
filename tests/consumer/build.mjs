@@ -1,9 +1,21 @@
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { build } from "esbuild";
+import { createRequire } from "node:module";
 import { defineProject, ProjectSession } from "@yongsk0066/reploom";
 import { createBrowserPlatform } from "@yongsk0066/reploom/browser";
 import { prepareProjects } from "@yongsk0066/reploom-build";
+
+const require = createRequire(import.meta.url);
+for (const name of [
+  "@codemirror/state",
+  "@lezer/common",
+  "react",
+  "acorn",
+  "oxc-transform",
+  "magic-string",
+])
+  assert.throws(() => require.resolve(name), { code: "MODULE_NOT_FOUND" });
 
 // Both public runtime entries must import in Node without browser globals.
 assert.equal(typeof ProjectSession, "function");
@@ -83,4 +95,30 @@ assert.ok(
 await writeFile(
   "dist/editor/index.html",
   '<!doctype html><meta charset="utf-8"><title>Packed editor</title><div id="editor"></div><script type="module" src="/headless/editor/editor.js"></script>',
+);
+
+const combined = await build({
+  stdin: {
+    contents:
+      "export { Playground } from '@yongsk0066/reploom-ui/react'; export { createEditor } from '@yongsk0066/reploom-ui/codemirror';",
+    resolveDir: process.cwd(),
+  },
+  outdir: "dist/combined",
+  write: false,
+  bundle: true,
+  format: "esm",
+  splitting: true,
+  platform: "browser",
+  metafile: true,
+  external: ["react"],
+});
+
+let editorImplementations = 0;
+for (const filename of Object.keys(combined.metafile.inputs))
+  if (filename !== "<stdin>" && (await readFile(filename, "utf8")).includes("@codemirror/view@"))
+    editorImplementations++;
+assert.equal(
+  editorImplementations,
+  1,
+  "React and direct editor imports share one bundled CodeMirror implementation",
 );

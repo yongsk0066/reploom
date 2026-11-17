@@ -20,9 +20,10 @@ import { cssLanguage } from "@codemirror/lang-css";
 import { json } from "@codemirror/lang-json";
 import { oneDark } from "@codemirror/theme-one-dark";
 import type { SourceFiles, SourceText } from "@yongsk0066/reploom";
-import { createLanguageAnalysis, type LanguageAnalysisOptions } from "./language/client.ts";
+import { createLanguageAnalysis } from "./language/client.ts";
+import type { EditorOptions } from "./options.ts";
 
-export type EditorOptions = { language?: LanguageAnalysisOptions | false };
+export type { EditorOptions } from "./options.ts";
 
 type Document = {
   state: EditorState;

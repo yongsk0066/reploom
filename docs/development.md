@@ -70,7 +70,7 @@ pnpm compiler:verify
 
 `REPLOOM_WASM_BINDGEN` selects a specific executable. The build remaps workspace, Cargo, Rust toolchain, and temporary paths before compilation so panic-location strings in the distributed WASM do not expose a contributor's home directory. The manifest records logical remap destinations and tool versions. Dependency notices are generated from the locked Cargo graph.
 
-The UI build bundles its pinned CodeMirror/Lezer closure with license notices. Workspace patches supply reverse sibling indexing and grammar-preserving character-run scanning; packed consumers receive these without configuring their own package manager. When upgrading, run the lexer differential corpus, editor tests, and three-engine Worker benchmark. The small Text/ChangeSet sources used by the language Worker have a separate hash-checked upstream manifest.
+The UI build bundles its pinned CodeMirror/Lezer closure with license notices. Public entries share one emitted editor implementation, and TypeScript's declaration graph determines which `.d.ts` files ship. The external packed consumer checks these types with `skipLibCheck: false`, builds both UI entries together, and verifies that no separate CodeMirror/Lezer installation is required. Workspace patches supply reverse sibling indexing and grammar-preserving character-run scanning; packed consumers receive these without configuring their own package manager. When upgrading, run the lexer differential corpus, editor tests, and three-engine Worker benchmark. The small Text/ChangeSet sources used by the language Worker have a separate hash-checked upstream manifest.
 
 ## Measurements
 

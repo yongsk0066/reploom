@@ -20,7 +20,8 @@ Build first and install the three Playwright browsers. Workloads write JSON to i
 
 | Command | Measures |
 | --- | --- |
-| `pnpm audit:packages` | Host bundle sizes, gzip totals, dependency boundaries, and runtime import cycles |
+| `pnpm audit:packages` | Static entry closures and total host bundle sizes, gzip totals, dependency boundaries, and runtime import cycles |
+| `pnpm bench:loading [snapshot-directory]` | Initial React/DOM gallery loading and shared asset retention across three engines |
 | `pnpm bench:runtime` | Module evaluation, replacement, and reusable runtime work |
 | `pnpm bench:browser` | Browser runtime and compiler workloads; optional `REPLOOM_BASELINE_WASM` comparison |
 | `pnpm bench:bindings` | Mutable named-import execution against native browser ESM, including repeated updates |
@@ -37,6 +38,8 @@ Build first and install the three Playwright browsers. Workloads write JSON to i
 `pnpm bench:parser <baseline.wasm>` compares a compatible host-ABI-3 compiler against the committed compiler. It checks output, diagnostics, recovery, and WASM capacity. The `--bounded-baseline` option enables resource-intensive cases on both versions; use it only when the baseline supports the same speculation and nesting policies.
 
 After `pnpm test:prepare`, `pnpm bench:compiler-startup <baseline.wasm>` compares the first programmatic edit in React and DOM projects. Each trial launches a fresh browser, preserves counter state, and blocks external services. The timer includes debounce, compiler startup, and preview acknowledgement.
+
+Before changing the runtime, `pnpm bench:loading --snapshot .local/loading-before` saves the built gallery and asset-loading implementation. After rebuilding, `pnpm bench:loading .local/loading-before` alternates five fresh-browser trials per engine against that snapshot. Gallery observations include uncompressed local downloads and two animation frames after readiness; the harness also records readiness itself, response bytes, and request counts. Separate workloads load one or twelve consumers of the same large prepared project and report source/program object identities. Chromium reports retained and released JS heap after explicit GC; Firefox and WebKit report identity and timing. The asset workload does not execute the program and is distinct from preview memory. Blob backing storage, WASM, and other browser-native allocations are outside that JS heap measurement.
 
 ## Interpret timing
 
@@ -58,6 +61,6 @@ RSS measures process and allocator retention. A weak-reference check after GC me
 
 ## Bundle boundaries
 
-`artifacts/audit/packages.json` contains minified and gzip sizes for all emitted host JavaScript chunks, including lazy chunks. It excludes prepared preview dependencies, WASM, CSS, and browser memory. Headless imports exclude React and CodeMirror; React examples still load their prepared framework bundle inside the preview.
+`artifacts/audit/packages.json` contains minified and gzip sizes for all emitted host JavaScript chunks, including lazy chunks, and separately totals the static import closure of each public entry. A dynamically imported editor can still load immediately under eager activation; use the gallery loading harness to measure that actual request path. The bundle audit excludes prepared preview dependencies, WASM, CSS, and browser memory. Headless imports exclude React and CodeMirror; React examples still load their prepared framework bundle inside the preview.
 
 Browser tests verify that the default activation policy requests neither the compiler Worker nor WASM before editing, and that optional preparation preserves the displayed revision. Packed-consumer tests validate the same package boundaries outside the workspace. Re-run those checks when changing loading, transport, or bundling, alongside state preservation, cancellation, and disposal tests.
