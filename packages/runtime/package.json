@@ -22,6 +22,10 @@
       "types": "./dist/browser.d.ts",
       "import": "./dist/browser.js"
     },
+    "./share": {
+      "types": "./dist/share.d.ts",
+      "import": "./dist/share.js"
+    },
     "./internal/*": {
       "types": "./dist/*.d.ts",
       "import": "./dist/*.js"

@@ -6,7 +6,7 @@ Reploom embeds a small editing workspace in a page. Reading the example, changin
 
 The file strip supports pointer selection, horizontal scrolling, Left/Right, Home, and End. Only the selected tab enters the Tab sequence; Tab then reaches the editor. The editor maintains each file's selection, scroll position, and undo history.
 
-Code, Preview, and Both change the visible panes. They do not replace the editor, create another session, or reload the iframe. Expand changes their height. At less than 560px of available component width, Both becomes a vertical stack. This threshold is a container query, so an example in a narrow article responds correctly even on a wide monitor.
+Code, Preview, and Both change the visible panes. They do not replace the editor, create another session, or reload the iframe. Expand changes their height. At less than 560px of available component width, the view switch appears above the panes in keyboard order and Both becomes a vertical stack. This threshold is a container query, so an example in a narrow article responds correctly even on a wide monitor.
 
 Run again restarts the current program without discarding source edits. Reset source restores the initial files and preview state after a native confirmation dialog. Cancel is the initially focused action; Escape dismisses the dialog. Error locations select and focus the affected source, opening the code pane when necessary. Logs, live-edit guidance, and project tools use native disclosure elements.
 

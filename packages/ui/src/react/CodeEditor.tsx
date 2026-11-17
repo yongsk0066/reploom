@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { createEditor } from "../codemirror/editor.ts";
 import type { EditorOptions } from "../codemirror/editor.ts";
 import type { SourceFiles } from "@yongsk0066/reploom";
@@ -30,6 +30,12 @@ export default function CodeEditor(props: Props) {
   const [failed, setFailed] = useState(false);
   const [activated, activate] = useState(props.activation !== "interaction");
 
+  const [factory, setFactory] = useState<typeof createEditor>();
+  const [composing, setComposing] = useState(false);
+  const fallback = useRef<HTMLTextAreaElement>(null);
+  const handoff = useRef<[number, number, number, number] | undefined>(undefined);
+  const focusOnEdit = useRef(false);
+
   function sync() {
     const p = latest.current;
     session.current?.sync(
@@ -58,24 +64,48 @@ export default function CodeEditor(props: Props) {
     let cancelled = false;
     import("../codemirror/editor.ts")
       .then(({ createEditor }) => {
-        if (cancelled || !host.current) return;
-        session.current = createEditor(
-          host.current,
-          (...args) => latest.current.onChange(...args),
-          latest.current.options,
-        );
-        sync();
-        setLoaded(true);
+        if (!cancelled) setFactory(() => createEditor);
       })
       .catch(() => {
         if (!cancelled) setFailed(true);
       });
     return () => {
       cancelled = true;
+    };
+  }, [activated]);
+
+  useLayoutEffect(() => {
+    if (!factory || composing || !host.current) return;
+    const text = fallback.current;
+    if (text?.matches(":focus") && !latest.current.selection) {
+      const backward = text.selectionDirection === "backward";
+      handoff.current = [
+        backward ? text.selectionEnd : text.selectionStart,
+        backward ? text.selectionStart : text.selectionEnd,
+        text.scrollTop,
+        text.scrollLeft,
+      ];
+    }
+    session.current = factory(
+      host.current,
+      (...args) => latest.current.onChange(...args),
+      latest.current.options,
+    );
+    sync();
+    setLoaded(true);
+    return () => {
       session.current?.destroy();
       session.current = null;
     };
-  }, [activated]);
+  }, [factory, composing]);
+
+  useLayoutEffect(() => {
+    if (loaded && handoff.current) {
+      session.current?.focusSelection(...handoff.current);
+      handoff.current = undefined;
+    }
+  }, [loaded]);
+
   useEffect(sync, [
     props.files,
     props.active,
@@ -97,7 +127,13 @@ export default function CodeEditor(props: Props) {
       <div ref={host} hidden={!loaded} />
       {!activated ? (
         <>
-          <button type="button" onClick={() => activate(true)}>
+          <button
+            type="button"
+            onClick={() => {
+              focusOnEdit.current = true;
+              activate(true);
+            }}
+          >
             {props.labels.edit}
           </button>
           <pre className="reploom-source-preview" aria-labelledby={props.labelId}>
@@ -111,8 +147,20 @@ export default function CodeEditor(props: Props) {
             aria-labelledby={props.labelId}
             aria-describedby={props.describedBy}
             spellCheck={false}
-            disabled={!failed}
-            onChange={(e) => props.onChange(props.active, e.target.value, false)}
+            ref={fallback}
+            autoFocus={focusOnEdit.current}
+            onCompositionStart={() => setComposing(true)}
+            onCompositionEnd={(event) => {
+              props.onChange(props.active, event.currentTarget.value, false);
+              setComposing(false);
+            }}
+            onChange={(event) =>
+              props.onChange(
+                props.active,
+                event.currentTarget.value,
+                composing || (event.nativeEvent as InputEvent).isComposing,
+              )
+            }
           />
         )
       )}

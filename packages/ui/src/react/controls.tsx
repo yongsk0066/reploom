@@ -3,7 +3,11 @@ import type { ProjectSession, ProjectView } from "@yongsk0066/reploom";
 import type { PlaygroundLabels } from "./labels.ts";
 import { useProject } from "./use-project.ts";
 
-export type PlaygroundView = "split" | "code" | "preview";
+import type { PlaygroundView } from "@yongsk0066/reploom/share";
+
+export type { PlaygroundView } from "@yongsk0066/reploom/share";
+
+import { ShareProject } from "./ShareProject.tsx";
 
 const initializedOf = (view: ProjectView) => view.initialized;
 
@@ -54,6 +58,40 @@ const ResetSource = memo(function ResetSource({
   );
 });
 
+export function ViewSelector({
+  id,
+  labels,
+  view,
+  setView,
+  compact,
+}: {
+  id: string;
+  labels: PlaygroundLabels;
+  view: PlaygroundView;
+  setView(view: PlaygroundView): void;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={compact ? "reploom-view-controls reploom-compact-views" : "reploom-view-controls"}
+      role="group"
+      aria-label={labels.view}
+    >
+      {(["code", "preview", "split"] as const).map((mode) => (
+        <button
+          key={mode}
+          type="button"
+          aria-pressed={view === mode}
+          aria-controls={`${id}-editor ${id}-preview`}
+          onClick={() => setView(mode)}
+        >
+          {labels[mode]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function ViewControls({
   view,
   expanded,
@@ -63,7 +101,9 @@ export function ViewControls({
   id,
   title,
   labels,
+  shareTarget,
 }: {
+  shareTarget?: string;
   view: PlaygroundView;
   expanded: boolean;
   setView(view: PlaygroundView): void;
@@ -75,19 +115,7 @@ export function ViewControls({
 }) {
   return (
     <div className="reploom-toolbar">
-      <div className="reploom-view-controls" role="group" aria-label={labels.view}>
-        {(["code", "preview", "split"] as const).map((mode) => (
-          <button
-            key={mode}
-            type="button"
-            aria-pressed={view === mode}
-            aria-controls={`${id}-editor ${id}-preview`}
-            onClick={() => setView(mode)}
-          >
-            {labels[mode]}
-          </button>
-        ))}
-      </div>
+      <ViewSelector {...{ id, labels, view, setView }} />
       <div className="reploom-actions">
         <button
           type="button"
@@ -97,6 +125,9 @@ export function ViewControls({
         >
           {expanded ? labels.collapse : labels.expand}
         </button>
+        {shareTarget && (
+          <ShareProject session={session} view={view} target={shareTarget} labels={labels} />
+        )}
         <ResetSource session={session} title={title} id={id} labels={labels} />
       </div>
     </div>

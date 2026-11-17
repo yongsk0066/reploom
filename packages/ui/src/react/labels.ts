@@ -1,6 +1,15 @@
 import type { ProjectState } from "@yongsk0066/reploom";
 
 export type PlaygroundLabels = {
+  share: string;
+  shareLink: string;
+  copyLink: string;
+  openLink: string;
+  linkCopied: string;
+  copyManually: string;
+  shareFailed: string;
+  shareTooLarge: string;
+  close: string;
   tools: string;
   files: string;
   path: string;
@@ -38,6 +47,15 @@ export type PlaygroundLabels = {
 };
 
 export const defaultLabels: Readonly<PlaygroundLabels> = Object.freeze({
+  share: "Share example",
+  shareLink: "Project link",
+  copyLink: "Copy link",
+  openLink: "Open shared example",
+  linkCopied: "Link copied.",
+  copyManually: "Select and copy the link.",
+  shareFailed: "Could not create the link.",
+  shareTooLarge: "This project is too large for a link. Save it as a file.",
+  close: "Close",
   tools: "Project tools",
   files: "Files",
   path: "Destination path",

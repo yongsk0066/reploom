@@ -224,6 +224,14 @@ export function createEditor(
         applying = false;
       }
     },
+    focusSelection(anchor: number, head: number, scrollTop: number, scrollLeft: number) {
+      if (!view) return;
+      const end = view.state.doc.length;
+      view.dispatch({ selection: { anchor: Math.min(anchor, end), head: Math.min(head, end) } });
+      view.focus();
+      view.scrollDOM.scrollTop = scrollTop;
+      view.scrollDOM.scrollLeft = scrollLeft;
+    },
     reveal(line: number, column: number) {
       if (!view) return;
       const target = view.state.doc.line(Math.min(view.state.doc.lines, Math.max(1, line)));

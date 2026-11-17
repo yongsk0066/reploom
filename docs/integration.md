@@ -184,3 +184,21 @@ Otherwise, the same idle period bounds an exact source/result cache, which can s
 `downloadTimeoutMs` controls the platform's asset-download timeout, defaulting to 30,000 ms. Shared requests remain active while another consumer needs them. Custom `SessionServices.loadProject` and `LoadedProject.compilerResources` implementations receive an optional AbortSignal and should honor it through their I/O.
 
 `session.reveal(diagnostic)` selects the diagnostic's file and publishes a selection request. Locations use one-based lines and zero-based UTF-16 columns; stale revision locations are rejected. The React view handles these requests automatically. Custom CodeMirror views can call `editor.reveal(line, column)` after synchronizing the selected file.
+
+## Opening and sharing an example
+
+Use `defaultView="preview"` or `"code"` to choose the opening panel and `defaultFile="/src/helper.ts"` to select a source. Each embed can choose its own starting point. The entry file opens when the requested path is unavailable. A headless host can pass the same path to `session.start({ active })`.
+
+Pass `shareTarget="/examples/shared/"` to enable the Share action. A link carries the schema-1 project archive and the current panel in a gzip-compressed URL fragment. Readers can copy the link or open it directly. The dialog offers registered state from a settled preview and a JSON file when the project exceeds the 64 KiB fragment budget. Only state explicitly registered by the example can travel between tabs. The destination must serve the matching prepared project.
+
+The receiving page decodes its fragment on the client, then mounts the React view with `project={archive.project}`, `initialArchive={archive}` and `defaultView={view}`. A headless host can call `session.start({ archive })`. Both paths validate the project identity through the same restore operation as a JSON upload. Starting with an archive runs the restored source as the first preview. For navigation between links, mount a fresh session for the new fragment.
+
+```ts
+import { decodeProjectFragment, encodeProjectFragment } from "@yongsk0066/reploom/share";
+
+const archive = await session.save({ state: true });
+const fragment = await encodeProjectFragment({ archive, view: "split" });
+const shared = await decodeProjectFragment(fragment);
+```
+
+Fragments stay out of HTTP request URLs. Page scripts can read them, so a standalone receiving page can omit third-party scripts. Decoding accepts at most 5 MiB of expanded archive data. Links contain the source itself and can be read by anyone who receives them.

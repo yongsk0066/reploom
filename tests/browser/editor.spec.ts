@@ -215,3 +215,66 @@ test("explicit editor activation defers CodeMirror and preserves the running pre
     await preview.locator("body").evaluate(() => (window as any).__editorActivationRealm),
   ).toBe(true);
 });
+
+test("typing and IME composition survive a delayed editor handoff", async ({ page }) => {
+  let release!: () => void;
+
+  const download = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  await page.route(/\/editor-[^/]+\.js$/, async (route) => {
+    await download;
+    await route.continue();
+  });
+  await page.goto("/regression/?editor=interaction");
+  const article = page.locator('[data-project="dom-counter"]');
+  await expect(article).toHaveAttribute("data-phase", "ready");
+  const preview = article.frameLocator("iframe");
+  await preview.getByRole("button").click();
+  await article.getByRole("button", { name: "Edit code" }).click();
+  const text = article.locator("textarea");
+  try {
+    await expect(text).toBeFocused();
+    const initial = await text.inputValue();
+    await text.evaluate((el: HTMLTextAreaElement) =>
+      el.setSelectionRange(el.value.length, el.value.length),
+    );
+    await page.keyboard.type("// first ");
+    await text.evaluate((el: HTMLTextAreaElement) => {
+      el.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+      el.setRangeText("한글", el.selectionStart, el.selectionEnd, "end");
+      el.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          data: "한글",
+          inputType: "insertCompositionText",
+          isComposing: true,
+        }),
+      );
+    });
+    release();
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          performance.getEntriesByType("resource").some((x) => /\/editor-[^/]+\.js$/.test(x.name)),
+        ),
+      )
+      .toBe(true);
+    await expect(text).toBeFocused();
+    const intended = initial + "// first 한글";
+    const caret = await text.evaluate((e) => (e as HTMLTextAreaElement).selectionEnd);
+    await text.evaluate((el) =>
+      el.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "한글" })),
+    );
+    const cm = article.locator(".cm-content");
+    await expect(cm).toBeFocused();
+    await page.keyboard.type("!");
+    expect(caret).toBe(intended.length);
+    expect(await readCode(cm)).toBe(intended + "!");
+    await expect(article).toHaveAttribute("data-phase", "ready");
+    await expect(preview.getByRole("button")).toHaveText("DOM count 1");
+  } finally {
+    release();
+  }
+});

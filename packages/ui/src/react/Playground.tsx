@@ -1,8 +1,8 @@
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { ProjectSession, type ProjectView } from "@yongsk0066/reploom";
+import { ProjectSession, type ProjectView, type ProjectArchive } from "@yongsk0066/reploom";
 import type { BrowserPlatform } from "@yongsk0066/reploom/browser";
 import { EditorPane, PreviewPane } from "./panels.tsx";
-import { ViewControls, type PlaygroundView } from "./controls.tsx";
+import { ViewControls, ViewSelector, type PlaygroundView } from "./controls.tsx";
 import { useProject } from "./use-project.ts";
 import { ShadowSurface } from "./ShadowSurface.tsx";
 import type { EditorOptions } from "../codemirror/editor.ts";
@@ -101,12 +101,17 @@ export type PlaygroundProps = {
   showTitle?: boolean;
   showTools?: boolean;
   defaultView?: PlaygroundView;
+  defaultFile?: string;
+  initialArchive?: ProjectArchive;
+  shareTarget?: string;
 };
 
 // Effects own resources, including React's development setup/cleanup/setup cycle.
 // Rendering never starts a session or retains a discarded render's resources.
 export default function Playground(props: PlaygroundProps) {
   const { project, platform } = props;
+  const opening = useRef({ active: props.defaultFile, archive: props.initialArchive });
+  opening.current = { active: props.defaultFile, archive: props.initialArchive };
   const labels = useMemo(() => ({ ...defaultLabels, ...props.labels }), [props.labels]);
 
   const [owner, setOwner] = useState<{
@@ -118,7 +123,7 @@ export default function Playground(props: PlaygroundProps) {
   useEffect(() => {
     const session = new ProjectSession(project, platform.services);
     setOwner({ project, platform, session });
-    void session.start();
+    void session.start(opening.current);
     return () => session.dispose();
   }, [project, platform]);
 
@@ -136,7 +141,12 @@ export default function Playground(props: PlaygroundProps) {
   return (
     <ShadowSurface fallback={loading}>
       {owner?.project === project && owner.platform === platform ? (
-        <ProjectUI {...props} labels={labels} session={owner.session} />
+        <ProjectUI
+          key={owner.session.projectId}
+          {...props}
+          labels={labels}
+          session={owner.session}
+        />
       ) : (
         loading
       )}
@@ -156,6 +166,7 @@ function ProjectUI({
   showTitle = true,
   showTools = true,
   defaultView = "split",
+  shareTarget,
 }: PlaygroundProps & { session: ProjectSession; labels: PlaygroundLabels }) {
   const id = useId();
   const host = useRef<HTMLElement>(null);
@@ -211,6 +222,7 @@ function ProjectUI({
           <h2>{title}</h2>
         </div>
       )}
+      <ViewSelector compact {...{ id, labels, view, setView }} />
       <div className="reploom-panes" id={`${id}-panes`}>
         <EditorPane
           session={session}
@@ -231,6 +243,7 @@ function ProjectUI({
         setView={setView}
         expanded={expanded}
         setExpanded={setExpanded}
+        shareTarget={shareTarget}
       />
       <Status session={session} id={id} labels={labels} reveal={reveal} />
       {showTools && <ProjectTools session={session} labels={labels} />}

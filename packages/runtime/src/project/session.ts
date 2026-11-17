@@ -250,7 +250,7 @@ export class ProjectSession {
     if (fresh) this.restoration = undefined;
   }
 
-  async start() {
+  async start({ active, archive }: { active?: string; archive?: ProjectArchive } = {}) {
     this.disposed = false;
     const epoch = ++this.loadEpoch;
     this.loading?.abort();
@@ -267,14 +267,15 @@ export class ProjectSession {
       this.lastGood = { files: project.files, output: project.output };
       this.set({
         files: project.files,
-        active: project.output.entry,
+        active: active && Object.hasOwn(project.files, active) ? active : project.output.entry,
         initialized: true,
         capabilities: {
           tests: !!project.checks?.length && !!this.services.validation?.tests,
           types: !!project.typecheck && !!this.services.validation?.types,
         },
       });
-      this.show(project.output, this.revision, true);
+      if (archive !== undefined) this.restore(archive);
+      else this.show(project.output, this.revision, true);
     } catch (error) {
       if (!this.disposed && epoch === this.loadEpoch)
         this.set({
@@ -455,7 +456,14 @@ export class ProjectSession {
     this.sourceEdits = {};
     this.materialized = undefined;
     this.view = { ...this.view, active: archive.active, editorReset: this.view.editorReset + 1 };
-    this.schedule(true, true, archive.files);
+    const prepared = this.original.files;
+
+    const sameSource =
+      Object.keys(prepared).length === Object.keys(archive.files).length &&
+      Object.entries(archive.files).every(([path, code]) => prepared[path] === code);
+
+    if (sameSource) this.lastGood = { files: prepared, output: this.original.output };
+    this.schedule(true, true, sameSource ? prepared : archive.files);
   }
 
   reveal(diagnostic: Diagnostic) {

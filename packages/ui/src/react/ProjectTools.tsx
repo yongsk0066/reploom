@@ -2,6 +2,8 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import type { ProjectArchive, ProjectSession } from "@yongsk0066/reploom";
 import type { PlaygroundLabels } from "./labels.ts";
 
+import { downloadArchive } from "./archive-download.ts";
+
 export function ProjectTools({
   session,
   labels,
@@ -47,15 +49,7 @@ export function ProjectTools({
       const value = await session.save({ state });
       setArchive(value);
 
-      const url = URL.createObjectURL(
-        new Blob([JSON.stringify(value, null, 2)], { type: "application/json" }),
-      );
-
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${session.example}.reploom.json`;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 0);
+      downloadArchive(value);
       setMessage("");
     } catch (error) {
       setMessage(String(error));
