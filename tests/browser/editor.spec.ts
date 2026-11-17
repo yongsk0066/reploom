@@ -1,6 +1,70 @@
 import { test, expect } from "@playwright/test";
 import { readCode, writeCode } from "./editor-helpers";
 
+test("an editor can be destroyed from its change callback without retaining its view", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  await page.goto("/features/?project=react");
+  await expect(page.locator("body")).toHaveAttribute("data-phase", "ready");
+  await page.evaluate(() => {
+    const parent = document.createElement("div");
+    parent.id = "retired-editor";
+    document.body.append(parent);
+
+    const editor = (window as any).createEditor(parent, () => {
+      editor.destroy();
+      editor.destroy();
+    });
+
+    editor.sync(
+      { "/test.ts": "const value=1;" },
+      "/test.ts",
+      { "aria-label": "Retired editor" },
+      false,
+    );
+  });
+  await page.getByRole("textbox", { name: "Retired editor" }).press("x");
+  await expect(page.locator("#retired-editor .cm-editor")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("compiler activation on interaction prepares without editing or replacing preview state", async ({
+  page,
+}) => {
+  const requests: string[] = [];
+  page.on("request", (request) => requests.push(request.url()));
+  await page.goto("/regression/?editor=interaction&compiler=interaction");
+  const article = page.locator('[data-project="dom-counter"]');
+  await expect(article).toHaveAttribute("data-phase", "ready");
+  const preview = article.frameLocator("iframe");
+  await preview.getByRole("button").click();
+  expect(requests.filter((url) => /compiler-worker|\.wasm$/.test(url))).toEqual([]);
+  await article.getByRole("button", { name: "Edit code", exact: true }).focus();
+  await expect.poll(() => requests.filter((url) => url.endsWith(".wasm")).length).toBe(1);
+  await expect(page.locator(".cm-editor")).toHaveCount(0);
+  await expect(article).toHaveAttribute("data-phase", "ready");
+  await expect(preview.getByRole("button")).toHaveText("DOM count 1");
+});
+
+test("syntax-only language support retains JSX closing tags and indentation", async ({ page }) => {
+  await page.goto("/features/?project=react");
+  await expect(page.locator("body")).toHaveAttribute("data-phase", "ready");
+  const editor = page.getByRole("textbox", { name: "Feature editor" });
+  await writeCode(editor, "const element = <section");
+  await editor.press("ControlOrMeta+End");
+  await page.keyboard.type(">");
+  expect(await readCode(editor)).toBe("const element = <section></section>");
+  await writeCode(editor, "function example() {");
+  await editor.press("ControlOrMeta+End");
+  await editor.press("Enter");
+  expect(await readCode(editor)).toBe("function example() {\n  ");
+});
+
 test("status synchronization preserves selection and avoids scroll layout reads", async ({
   page,
 }) => {

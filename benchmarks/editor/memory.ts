@@ -23,13 +23,31 @@ function track() {
     references.push({ kind, at: edits, value: new WeakRef(value) });
 }
 
-async function parsed() {
+async function parsed(active: EditorView) {
   const deadline = performance.now() + 10000;
-  while (view && !syntaxTreeAvailable(view.state, view.state.doc.length)) {
-    forceParsing(view, view.state.doc.length, 2);
+  while (!syntaxTreeAvailable(active.state, active.state.doc.length)) {
+    forceParsing(active, active.state.doc.length, 2);
     if (performance.now() > deadline) throw Error("Syntax timeout");
     await pause(5);
   }
+}
+
+async function editBatch(active: EditorView) {
+  const start = performance.now();
+  const sync: number[] = [];
+  for (let i = 0; i < 100; i++) {
+    const mark = performance.now();
+    const insert = ++edits % 2 ? "2" : "1";
+    active.dispatch({
+      changes: { from: position, to: position + 1, insert },
+      userEvent: "input.type",
+    });
+    sync.push(performance.now() - mark);
+    await parsed(active);
+    if (active.state.doc.sliceString(position, position + 1) !== insert) throw Error("Text drift");
+  }
+  track();
+  return { edits, ms: performance.now() - start, sync, created, retired };
 }
 
 const memoryCase = {
@@ -57,26 +75,12 @@ const memoryCase = {
     const text = Array.from({ length: 38000 }, (_, i) => `const value_${i}=12345;`).join("\n");
     editor.sync({ "/main.js": text }, "/main.js", {}, false);
     view = EditorView.findFromDOM(document.querySelector(".cm-editor")!);
-    await parsed();
+    await parsed(view!);
     track();
     return { characters: view!.state.doc.length, created, retired };
   },
-  async batch() {
-    const start = performance.now();
-    const sync: number[] = [];
-    for (let i = 0; i < 100; i++) {
-      const mark = performance.now();
-      const insert = ++edits % 2 ? "2" : "1";
-      view!.dispatch({
-        changes: { from: position, to: position + 1, insert },
-        userEvent: "input.type",
-      });
-      sync.push(performance.now() - mark);
-      await parsed();
-      if (view!.state.doc.sliceString(position, position + 1) !== insert) throw Error("Text drift");
-    }
-    track();
-    return { edits, ms: performance.now() - start, sync, created, retired };
+  batch() {
+    return editBatch(view!);
   },
   async idle() {
     const deadline = performance.now() + 5000;

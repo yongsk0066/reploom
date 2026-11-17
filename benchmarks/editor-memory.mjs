@@ -15,26 +15,30 @@ const collect = process.env.REPLOOM_MEMORY_GC === "1";
 const heap = process.env.REPLOOM_MEMORY_HEAP === "1";
 const diagnose = process.env.REPLOOM_MEMORY_DIAGNOSE === "1";
 const waitLimit = Number(process.env.REPLOOM_MEMORY_WAIT_MS ?? 10000);
-const variants = ["current"];
-const require = createRequire(new URL("../packages/ui/package.json", import.meta.url));
-
-const alias = Object.fromEntries(
-  ["state", "view", "language", "commands"].map((name) => [
-    "@codemirror/" + name,
-    require.resolve("@codemirror/" + name).replace(/\.cjs$/, ".js"),
-  ]),
-);
-
+const baseline = process.env.REPLOOM_MEMORY_BASELINE;
+const variants = baseline ? ["baseline", "current"] : ["current"];
+const rounds = Number(process.env.REPLOOM_MEMORY_ROUNDS ?? (collect ? 1 : 2));
+const collectionFailures = [];
 const builds = new Map();
 const bundles = {};
 for (const variant of variants) {
+  const root = path.resolve(variant === "baseline" ? baseline : ".");
+  const require = createRequire(path.join(root, "packages/ui/package.json"));
+
+  const alias = Object.fromEntries(
+    ["state", "view", "language", "commands"].map((name) => [
+      "@codemirror/" + name,
+      require.resolve("@codemirror/" + name).replace(/\.cjs$/, ".js"),
+    ]),
+  );
+
   const worker = await build({
-    entryPoints: ["packages/ui/src/codemirror/language/worker.ts"],
+    entryPoints: [path.join(root, "packages/ui/src/codemirror/language/worker.ts")],
     bundle: true,
     format: "iife",
     minify: true,
     write: false,
-    alias: { "@codemirror/state": path.resolve("packages/ui/vendor/codemirror-state/index.ts") },
+    alias: { "@codemirror/state": path.join(root, "packages/ui/vendor/codemirror-state/index.ts") },
   });
 
   const source = worker.outputFiles[0].text;
@@ -55,6 +59,9 @@ for (const variant of variants) {
       {
         name: "worker-version",
         setup(builder) {
+          builder.onResolve({ filter: /packages\/ui\/src\/codemirror\/editor\.ts$/ }, () => ({
+            path: path.join(root, "packages/ui/src/codemirror/editor.ts"),
+          }));
           builder.onResolve({ filter: /^@yongsk0066\/reploom-ui\/language-worker$/ }, () => ({
             path: "source",
             namespace: "worker",
@@ -136,7 +143,7 @@ try {
     )
       continue;
     const trials = (results[engine] = []);
-    for (let round = 0; round < (collect ? 1 : 2); round++)
+    for (let round = 0; round < rounds; round++)
       for (const variant of round % 2 ? [...variants].reverse() : variants) {
         const before = new Set((await processes()).map((row) => row.pid));
 
@@ -196,7 +203,8 @@ try {
               collections.push({ waitedMs, references });
             }
             console.log(engine, variant, "final-collection", JSON.stringify(collections.at(-1)));
-            assert.ok(references.every((entry) => !entry.alive));
+            if (references.some((entry) => entry.alive))
+              collectionFailures.push({ engine, variant, round, references });
             samples.push({ stage: "collected", ...(await measure()) });
           }
           if ((heap || diagnose) && engine === "webkit") {
@@ -242,15 +250,17 @@ try {
       {
         date: new Date().toISOString(),
         diagnose,
+        rounds,
+        collectionFailures,
         waitLimit,
         bundles,
         collect,
         heap,
         collectionScope: collect
-          ? "Separate ownership diagnostic: one process per variant/engine, weak references only, three initial page.requestGC calls after disposal, then one-second waits with GC up to waitLimit until tracked objects disappear. Collections are recorded separately. Natural RSS/performance observations are in the separate two-round run."
+          ? "Separate ownership diagnostic: one process per variant/engine/round, weak references only, three initial page.requestGC calls after disposal, then one-second waits with GC up to waitLimit until tracked objects disappear. Collections are recorded separately. Natural RSS/performance observations require a separate run with collect disabled."
           : undefined,
         scope:
-          "macOS RSS sum of owned browser processes, including newly launched WebKit XPC processes. Two fresh-process trials per engine in natural RSS mode; one in GC mode. Isolated editor with ordinary undo, 400 incremental edits with syntax settling, 1.5s configured idle retirement, 100 edits after reseed, disposal. No compiler WASM, preview or per-edit protocol round trips. Natural RSS mode has no GC requests or heap snapshots. collect enables weak-reference/GC diagnostics; heap uses a separate 100-edit unminified-host inspector experiment. Uses current editor, parser and tree transport. Inlined Worker source excludes network startup. RSS is allocator/process retention, not JS object liveness.",
+          "macOS RSS sum of owned browser processes, including newly launched WebKit XPC processes. Each configured round launches a fresh process for every engine and variant. Isolated editor with ordinary undo, 400 incremental edits with syntax settling, 1.5s configured idle retirement, 100 edits after reseed, disposal. No compiler WASM, preview or per-edit protocol round trips. Natural RSS mode has no GC requests or heap snapshots. collect enables weak-reference/GC diagnostics; heap uses a separate 100-edit unminified-host inspector experiment. Uses one identical input harness with each selected editor, parser and tree transport. Optional baseline is a separate source checkout. Inlined Worker source excludes network startup. RSS is allocator/process retention, not JS object liveness.",
         results,
       },
       null,
@@ -258,3 +268,9 @@ try {
     ) + "\n",
   );
 }
+
+assert.deepEqual(
+  collectionFailures,
+  [],
+  "Disposed editor roots remained reachable; see recorded collection outcomes",
+);

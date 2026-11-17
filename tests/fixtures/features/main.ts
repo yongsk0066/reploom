@@ -8,7 +8,7 @@ const NativeWorker = globalThis.Worker;
 globalThis.Worker = class extends NativeWorker {
   retired = false;
   name: string;
-  replies: Array<{ memoryBytes: number }> = [];
+  replies: Array<{ memoryBytes: number; buildInfoBytes?: number; checkpoint: boolean }> = [];
   languageReplies: Array<{ revision: number; records: number; bytes: number }> = [];
   languageRequests: Array<{ base: number; source: number; edits: number }> = [];
 
@@ -17,7 +17,12 @@ globalThis.Worker = class extends NativeWorker {
     this.name = options?.name ?? "";
     workers.push(this);
     this.addEventListener("message", ({ data }) => {
-      if (data?.memoryBytes) this.replies.push({ memoryBytes: data.memoryBytes });
+      if (data?.memoryBytes)
+        this.replies.push({
+          memoryBytes: data.memoryBytes,
+          buildInfoBytes: data.buildInfoBytes,
+          checkpoint: !!data.checkpoint,
+        });
       if (this.name === "reploom-language" && data?.type === "tree")
         this.languageReplies.push({
           revision: data.revision,
@@ -56,17 +61,22 @@ globalThis.Worker = class extends NativeWorker {
       this.name === "reploom-typecheck" &&
       message?.type === "check" &&
       (globalThis as any).holdTypes
-    )
+    ) {
+      (globalThis as any).heldTypeChecks = ((globalThis as any).heldTypeChecks ?? 0) + 1;
       return;
+    }
     super.postMessage(message, options);
   }
 };
 
 const platform = createBrowserPlatform({
   manifestUrl: "/features/assets/manifest.json",
-  typecheck: parameters.has("typeIdle")
-    ? { idleMs: Number(parameters.get("typeIdle")) }
-    : undefined,
+  typecheck: {
+    ...(parameters.has("typeIdle") ? { idleMs: Number(parameters.get("typeIdle")) } : {}),
+    ...(parameters.has("typeMemory")
+      ? { maxMemoryBytes: Number(parameters.get("typeMemory")) }
+      : {}),
+  },
   compilerLifetime: parameters.has("recycle") ? { maxMemoryBytes: 1, minLifetimeMs: 0 } : undefined,
 });
 
@@ -110,6 +120,7 @@ session.subscribe(() => {
 Object.assign(window, {
   session,
   editor,
+  createEditor,
   platform,
   ProjectSession,
   compilerWorkers: () => workers.filter((worker) => worker.name === "reploom-compiler"),

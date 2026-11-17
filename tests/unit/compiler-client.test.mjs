@@ -360,3 +360,75 @@ test("only the verified compiled Module survives idle retirement; final release 
     globalThis.Worker = original;
   }
 });
+
+test("preparation awaits engine readiness, isolates cancellation, and ignores retired generations", async () => {
+  const instances = [];
+
+  const client = createCompilerClient(() => {
+    const worker = {
+      messages: [],
+      postMessage(message) {
+        this.messages.push(message);
+      },
+      terminate() {
+        this.retired = true;
+      },
+    };
+
+    instances.push(worker);
+    return worker;
+  });
+
+  const asset = { url: "/compiler.wasm", sha256: "test" };
+  const signal = new AbortController().signal;
+  try {
+    const cancelled = new AbortController();
+    const first = client.prepare("one", asset, cancelled.signal);
+    let settled = false;
+
+    const second = client.prepare("two", asset, signal).then(() => {
+      settled = true;
+    });
+
+    await Promise.resolve();
+    assert.equal(settled, false);
+    assert.equal(instances[0].messages.length, 1);
+    cancelled.abort();
+    await assert.rejects(first, { name: "AbortError" });
+    assert.equal(instances[0].retired, undefined);
+    const previousReply = instances[0].onmessage;
+    const protocol = instances[0].messages[0].protocol;
+    previousReply({ data: { protocol, type: "prepared", compiler: asset } });
+    await second;
+    await client.prepare("two", asset, signal);
+    assert.equal(instances[0].messages.length, 1);
+    await assert.rejects(
+      client.prepare("two", { ...asset, sha256: "changed" }, signal),
+      /identity/,
+    );
+    client.release("one");
+    client.release("two");
+    assert.equal(instances[0].retired, true);
+    assert.equal(instances[0].onmessage, null);
+    assert.equal(instances[0].onerror, null);
+    settled = false;
+
+    const third = client.prepare("three", asset, signal).then(() => {
+      settled = true;
+    });
+
+    previousReply({ data: { protocol, type: "prepared", compiler: asset } });
+    await Promise.resolve();
+    assert.equal(settled, false);
+    instances[1].onmessage({
+      data: { protocol, type: "prepared", compiler: asset, error: "invalid compiler" },
+    });
+    await assert.rejects(third, /invalid compiler/);
+    assert.equal(instances[1].retired, true);
+    const fourth = client.prepare("four", asset, signal);
+    client.release("four");
+    await assert.rejects(fourth, { name: "AbortError" });
+  } finally {
+    client.dispose();
+  }
+});

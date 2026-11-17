@@ -41,7 +41,7 @@ You can also run preparation programmatically with `prepareProjects(options)`. R
 
 Publish the entire generated directory, including `manifest.json`, hashed assets, and license notices, at `/reploom/` on the page's origin. Serve `.wasm` files with `application/wasm` and `.mjs` files with a JavaScript MIME type, and exclude the directory from SPA HTML fallbacks.
 
-Regenerate these assets when upgrading Reploom packages. The current contract uses manifest schema 2, protocol 7, program schema 8, and module ABI 4. Deploy the matching runtime and prepared directory together.
+Regenerate these assets when upgrading Reploom packages. The current contract uses manifest schema 2, protocol 8, program schema 8, and module ABI 4. Deploy the matching runtime and prepared directory together.
 
 ## Use a headless session
 
@@ -77,7 +77,9 @@ A platform manages the shared compiler Worker and verified asset cache across mu
 
 String-based editors can call `change(path, source)`. Editors backed by persistent text trees can supply `change(path, source, composing, edits)` with incremental UTF-16 edit spans to avoid serializing the full document on every keystroke. The CodeMirror adapter supplies these operations automatically.
 
-Projects use adaptive update admission by default: a fresh idle burst waits 40 ms; continuing pending or active work uses a 40–120 ms trailing wait based on input intervals and observed execution cost, with a requested pending-edit deadline of 240 ms. A completed update clears its input cadence so its runtime is not mistaken for ongoing typing. Set `updateDelayMs` in the project declaration for a fixed delay. These are scheduling targets; Worker startup, compilation, rendering, and browser throttling contribute additional time. Custom session hosts can inject `createAdmission` and a monotonic `now` clock through `SessionServices`.
+Projects use adaptive update admission by default: an idle first edit starts on the next task; closely spaced input and continuing work use a 40–120 ms trailing wait based on input intervals and observed execution cost, with a requested pending-edit deadline of 240 ms. Completion preserves the input timestamp so fast compiles still coalesce typing bursts. Set `updateDelayMs` in the project declaration for a fixed delay. These are scheduling targets; Worker startup, compilation, rendering, and browser throttling contribute additional time. Custom session hosts can inject `createAdmission` and a monotonic `now` clock through `SessionServices`.
+
+`session.prepare()` optionally warms compiler resources without changing source or preview state. Concurrent calls share one task; successful preparation waits for engine readiness. Preparation is best-effort, and the next compilation reports loading failures and retries. Session or platform disposal releases its preparation consumer.
 
 ## Use the React view
 
@@ -102,7 +104,11 @@ export function mountExample(host: HTMLElement) {
 
 `Playground` manages its session and preview lifecycle, while the caller owns the platform. Create the platform inside an explicit mount function or a mounting effect. The wrapper supports React Strict Mode's development setup, cleanup, and setup cycle.
 
-By default, `Playground` mounts the full editor eagerly. Setting `editorActivation="interaction"` shows a read-only source preview and an Edit code button; clicking it loads CodeMirror. If the editor fails to load, an editable textarea provides a fallback. Customize the host UI through the `labels` prop; the React entry exports `defaultLabels` and `PlaygroundLabels`. Compiler diagnostics and compute output have separate text. Styles use the `reploom-` class prefix and read `--reploom-background`, `--reploom-text`, and `--reploom-border` from `.reploom`.
+By default, `Playground` mounts the full editor eagerly. Setting `editorActivation="interaction"` shows a read-only source preview and an Edit code button; clicking it loads CodeMirror. If the editor fails to load, an editable textarea provides a fallback.
+
+Set `compilerActivation="interaction"` to start compiler preparation on editor focus or pointer input; its default, `"edit"`, keeps read-only sessions free of compiler downloads. This option moves startup work before the first edit and may download resources for an interaction that never becomes an edit.
+
+Customize the host UI through the `labels` prop; the React entry exports `defaultLabels` and `PlaygroundLabels`. Compiler diagnostics and compute output have separate text. Styles use the `reploom-` class prefix and read `--reploom-background`, `--reploom-text`, and `--reploom-border` from `.reploom`.
 
 The view's Project tools panel exposes file operations, JSON download/upload, restoration of the last saved archive, and prepared checks. State capture is an explicit checkbox. New UI strings are part of `PlaygroundLabels`.
 
@@ -162,11 +168,13 @@ await prepareProjects({
 });
 ```
 
-Install `@tsrs/wasm@0.25.0-ts7.1.0-beta` in `projectRoot`, together with declaration packages needed by the examples. React projects need `@types/react` and `@types/react-dom`. Preparation collects declarations from installed dependencies; `typecheck.packages` can name additional type packages. The default checker settings include `strict: false`, `checkJs: true`, and `skipLibCheck: true`; supplied compiler options override them, while emission, incremental build files, and composite builds remain disabled.
+Install `@tsrs/wasm@0.25.0-ts7.1.0-beta` in `projectRoot`, together with declaration packages needed by the examples. React projects need `@types/react` and `@types/react-dom`. Preparation collects declarations from installed dependencies; `typecheck.packages` can name additional type packages. The default checker settings include `strict: false`, `checkJs: true`, and `skipLibCheck: true`; supplied compiler options override them, while emission and composite builds remain disabled. Incremental checking is enabled automatically at 128,000 UTF-16 source code units; set `compilerOptions.incremental` explicitly to override this threshold. Its private in-memory build information is capped at 1 MiB and ends with the checker lease.
 
 Call `await session.check("types")` to run the checker in an on-demand Worker. Editing cancels checks for the old revision. Results appear under `view.checks.tests` or `view.checks.types`, tagged with their source revision. The platform allows one active job of each kind and eight waiting jobs per kind, and reuses the checker Worker briefly after success. Failure, timeout, or cancellation retires it immediately. A headless host may instead inject either validation service through `SessionServices`.
 
-Set `typecheck: { idleMs, timeoutMs, maxMemoryBytes, createWorker }` on `createBrowserPlatform` to control the checker lease. Defaults are 5,000 ms idle, 30,000 ms per initialization/check, and a 128 MiB observed per-check WASM threshold. Setting `idleMs: 0` retires the Worker after every check. The threshold is a retirement policy, not a hard allocation limit. The optional factory receives the verified Worker script URL.
+Set `typecheck: { idleMs, timeoutMs, maxMemoryBytes, createWorker }` on `createBrowserPlatform` to control the checker lease. Defaults are 5,000 ms idle, 30,000 ms per initialization/check, and a 128 MiB observed per-check WASM threshold. Setting `idleMs: 0` retires the Worker and diagnostic cache after every check and disables automatic incremental checking. The threshold is a retirement policy, not a hard allocation limit. The optional factory receives the verified Worker script URL.
+
+Otherwise, the same idle period bounds an exact source/result cache, which can serve an unchanged project even after a memory-pressure retirement. Such a retirement also preserves immutable compiler code and bounded incremental metadata for the next Worker, while releasing the old execution memory.
 
 `downloadTimeoutMs` controls the platform's asset-download timeout, defaulting to 30,000 ms. Shared requests remain active while another consumer needs them. Custom `SessionServices.loadProject` and `LoadedProject.compilerResources` implementations receive an optional AbortSignal and should honor it through their I/O.
 

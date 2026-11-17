@@ -9,9 +9,14 @@ import {
   lineNumbers,
 } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
-import { bracketMatching, indentOnInput, forceParsing } from "@codemirror/language";
-import { javascript } from "@codemirror/lang-javascript";
-import { css } from "@codemirror/lang-css";
+import {
+  bracketMatching,
+  indentOnInput,
+  forceParsing,
+  LanguageSupport,
+} from "@codemirror/language";
+import { autoCloseTags, jsxLanguage, tsxLanguage } from "@codemirror/lang-javascript";
+import { cssLanguage } from "@codemirror/lang-css";
 import { json } from "@codemirror/lang-json";
 import { oneDark } from "@codemirror/theme-one-dark";
 import type { SourceFiles, SourceText } from "@yongsk0066/reploom";
@@ -108,10 +113,10 @@ export function createEditor(
 
   const language = (path: string) => {
     const standard = path.endsWith(".css")
-      ? css()
+      ? new LanguageSupport(cssLanguage)
       : path.endsWith(".json")
         ? json()
-        : javascript({ jsx: true, typescript: /\.tsx?$/.test(path) });
+        : new LanguageSupport(/\.tsx?$/.test(path) ? tsxLanguage : jsxLanguage, autoCloseTags);
 
     return analysis?.support(path, kind(path), standard) ?? standard;
   };
@@ -224,11 +229,19 @@ export function createEditor(
     destroy() {
       destroyed = true;
       analysis?.dispose();
-      view?.destroy();
-      view = undefined;
       documents.clear();
       current = currentText = "";
       lastAttributes = {};
+      if (view) {
+        // A browser may retain a retired View in compiled code. Drop its document,
+        // history and syntax payload through the public state API before teardown.
+        try {
+          view.setState(EditorState.create());
+        } finally {
+          view.destroy();
+          view = undefined;
+        }
+      }
     },
   };
 }

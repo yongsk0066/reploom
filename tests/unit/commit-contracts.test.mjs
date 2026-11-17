@@ -274,6 +274,7 @@ test("type-check download cancellation releases the lane and retries without a s
 
 test("type-check leases reuse initialization, terminate active cancellation, then retire after idle", async () => {
   const workers = [];
+  const reusable = new WebAssembly.Module(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]));
   const contents = { worker: "", config: "{}", wasm: "bytes" };
 
   const assets = Object.fromEntries(
@@ -306,6 +307,8 @@ test("type-check leases reuse initialization, terminate active cancellation, the
         },
         postMessage(message) {
           this.messages.push(message);
+          if (message.module)
+            throw new DOMException("Module cloning unavailable", "DataCloneError");
           if (!this.hold)
             queueMicrotask(() =>
               this.onmessage?.({
@@ -313,8 +316,13 @@ test("type-check leases reuse initialization, terminate active cancellation, the
                   protocol: 1,
                   id: message.id,
                   ready: true,
-                  diagnostics: [],
-                  memoryBytes: 65536,
+                  diagnostics: message.files?.["/error.ts"]
+                    ? [{ text: "Type error", file: "/error.ts", line: 1, column: 0 }]
+                    : [],
+                  memoryBytes: message.files?.["/large.ts"] ? 256 * 1024 * 1024 : 65536,
+                  checkpoint: message.files?.["/large.ts"]
+                    ? { module: reusable, buildInfo: "checkpoint" }
+                    : undefined,
                 },
               }),
             );
@@ -333,11 +341,19 @@ test("type-check leases reuse initialization, terminate active cancellation, the
     assert.equal(workers.length, 1);
     assert.deepEqual(
       workers[0].messages.map((m) => m.type),
-      ["initialize", "check", "check"],
+      ["initialize", "check"],
     );
+    const mutable = { "/error.ts": "invalid" };
+    const diagnostics = await services.types(mutable, signal);
+    diagnostics[0].text = "mutated";
+    mutable["/error.ts"] = "edited";
+    assert.equal((await services.types({ "/error.ts": "invalid" }, signal))[0].text, "Type error");
+    assert.equal(workers[0].messages.filter((m) => m.type === "check").length, 2);
+    await services.types(mutable, signal);
+    assert.equal(workers[0].messages.filter((m) => m.type === "check").length, 3);
     workers[0].hold = true;
     const c = new AbortController();
-    const active = services.types({}, c.signal);
+    const active = services.types({ "/changed.ts": "export const changed = true;" }, c.signal);
     await nextTask();
     c.abort();
     await assert.rejects(active, { name: "AbortError" });
@@ -346,6 +362,21 @@ test("type-check leases reuse initialization, terminate active cancellation, the
     assert.equal(workers.length, 2);
     await delay(20);
     assert.equal(workers[1].retired, true);
+    const large = { "/large.ts": "export const large = true;" };
+    await services.types(large, signal);
+    assert.equal(workers[2].retired, true);
+    await services.types(large, signal);
+    assert.equal(workers.length, 3);
+    await services.types({ ...large, "/changed.ts": "export const changed = true;" }, signal);
+    assert.equal(workers[3].messages[0].module, reusable);
+    assert.equal(workers[3].messages[1].module, undefined);
+    assert.equal(workers[3].messages[1].buildInfo, "checkpoint");
+    assert.equal(workers[3].retired, true);
+    await delay(20);
+    await services.types(large, signal);
+    assert.equal(workers.length, 5);
+    assert.equal(workers[4].messages[0].module, undefined);
+    assert.equal(workers[4].messages[0].buildInfo, undefined);
   } finally {
     services.dispose();
     repo.dispose();
@@ -397,17 +428,15 @@ test("one state conflict prevents every candidate state from publishing", async 
   assert.equal(runtime.captureState()["/b.ts"].b, 2);
 });
 
-test("reused type checking preserves diagnostic locations in prepared declarations", async (t) => {
+async function createChecker(t, configuration, options = {}) {
   const worker = new NodeWorker(
-    `
-    const {parentPort, workerData} = require('node:worker_threads');
+    `const {parentPort, workerData} = require('node:worker_threads');
     globalThis.self = globalThis;
     globalThis.postMessage = value => parentPort.postMessage(value);
     import(workerData).then(() => {
       parentPort.on('message', data => self.onmessage({data}));
       parentPort.postMessage({loaded:true});
-    });
-  `,
+    });`,
     {
       eval: true,
       workerData: new URL("../../packages/build/src/typecheck-worker.mjs", import.meta.url).href,
@@ -417,37 +446,97 @@ test("reused type checking preserves diagnostic locations in prepared declaratio
   t.after(() => worker.terminate());
   const receive = async () => (await once(worker, "message"))[0];
   assert.equal((await receive()).loaded, true);
+  const wasm = await readFile(new URL("../../node_modules/@tsrs/wasm/tsrs.wasm", import.meta.url));
+  let id = 0;
 
+  const send = async (message) => {
+    const response = receive();
+    worker.postMessage({ protocol: 1, id: ++id, ...message });
+    const result = await response;
+    assert.equal(result.error, undefined);
+    return result;
+  };
+
+  const ready = await send({
+    type: "initialize",
+    wasm,
+    configuration: new TextEncoder().encode(JSON.stringify(configuration)),
+    ...options,
+  });
+
+  assert.equal(ready.ready, true);
+  return Object.assign((files) => send({ type: "check", files }), {
+    dispose: () => worker.terminate(),
+  });
+}
+
+test("reused type checking preserves diagnostic locations in prepared declarations", async (t) => {
   const source =
     "export const one: string;\nexport const two: number;\nexport const broken: Missing;";
 
-  const configuration = new TextEncoder().encode(
-    JSON.stringify({
-      files: { "/vendor.d.ts": source, "/reploom.d.ts": "" },
-      compilerOptions: { skipLibCheck: false },
-    }),
-  );
+  const check = await createChecker(t, {
+    files: { "/vendor.d.ts": source, "/reploom.d.ts": "" },
+    compilerOptions: { skipLibCheck: false, incremental: true },
+  });
 
-  const binary = await readFile(
-    new URL("../../node_modules/@tsrs/wasm/tsrs.wasm", import.meta.url),
-  );
-
-  let response = receive();
-  worker.postMessage({ protocol: 1, id: 1, type: "initialize", wasm: binary, configuration });
-  assert.equal((await response).ready, true);
-  for (const id of [2, 3]) {
-    response = receive();
-    worker.postMessage({
-      protocol: 1,
-      id,
-      type: "check",
-      files: { "/main.ts": "import {one} from './vendor'; export const value = one;" },
+  for (let i = 0; i < 3; i++) {
+    const result = await check({
+      "/main.ts": "import {one} from './vendor'; export const value = one;",
     });
-    const result = await response;
-    assert.equal(result.error, undefined);
+
     const diagnostic = result.diagnostics.find((item) => item.file === "/vendor.d.ts");
     assert.ok(diagnostic, JSON.stringify(result.diagnostics));
     assert.equal(diagnostic.line, 3);
     assert.equal(diagnostic.column, source.split("\n")[2].indexOf("Missing"));
+    assert.ok(result.buildInfoBytes > 0 && result.buildInfoBytes <= 1024 * 1024);
   }
+});
+
+test("incremental type metadata invalidates dependent errors, added roots, removed files and moves", async (t) => {
+  const check = await createChecker(t, {
+    files: { "/reploom.d.ts": "" },
+    compilerOptions: { strict: true, incremental: true },
+  });
+
+  const files = {
+    "/main.ts": "import type {Item} from './model'; export const item: Item={value:1};",
+    "/model.ts": "export type Item={value:number};",
+  };
+
+  assert.deepEqual((await check(files)).diagnostics, []);
+  files["/model.ts"] = "export type Item={value:string};";
+  const failed = await check(files);
+  assert.equal(failed.diagnostics.length, 1);
+  assert.match(failed.diagnostics[0].text, /TS2322/);
+  assert.deepEqual((await check(files)).diagnostics, failed.diagnostics);
+  delete files["/model.ts"];
+  assert.match((await check(files)).diagnostics[0].text, /TS2307/);
+  files["/types.ts"] = "export type Item={value:number};";
+  files["/main.ts"] = files["/main.ts"].replace("./model", "./types");
+  assert.deepEqual((await check(files)).diagnostics, []);
+  files["/extra.ts"] = "export const extra: number='wrong';";
+  assert.equal((await check(files)).diagnostics[0].file, "/extra.ts");
+  delete files["/extra.ts"];
+  assert.deepEqual((await check(files)).diagnostics, []);
+});
+
+test("checker checkpoints cross retirement with compiled code and bounded metadata but no WASM instance", async (t) => {
+  const configuration = { files: { "/reploom.d.ts": "" }, compilerOptions: { incremental: true } };
+  const first = await createChecker(t, configuration, { maxMemoryBytes: 1 });
+  const result = await first({ "/main.ts": "export const value: number = 1;" });
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual(Object.keys(result.checkpoint).sort(), ["buildInfo", "module"]);
+  assert.ok(result.checkpoint.module instanceof WebAssembly.Module);
+  assert.ok(result.checkpoint.buildInfo.length * 2 <= 1024 * 1024);
+  await first.dispose();
+
+  const second = await createChecker(t, configuration, {
+    ...result.checkpoint,
+    wasm: new Uint8Array(),
+  });
+
+  assert.match(
+    (await second({ "/main.ts": "export const value: number = 'changed';" })).diagnostics[0].text,
+    /TS2322/,
+  );
 });

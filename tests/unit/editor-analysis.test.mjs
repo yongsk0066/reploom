@@ -8,6 +8,7 @@ import {
   createTreeReceiver,
 } from "../../packages/ui/src/codemirror/language/tree-channel.ts";
 import { createLanguageAnalysis } from "../../packages/ui/src/codemirror/language/client.ts";
+import { documentInput } from "../../packages/ui/src/codemirror/language/document-input.ts";
 import { createUpdateAdmission } from "../../packages/runtime/src/project/update-admission.ts";
 
 const uiRequire = createRequire(new URL("../../packages/ui/package.json", import.meta.url));
@@ -289,37 +290,80 @@ test("a retired language Worker factory cannot fail a different active document"
   assert.equal(terminated, 1);
 });
 
-test("adaptive admission coalesces bursts, bounds sustained-input delay and learns execution cost", () => {
+test("document cursors preserve random UTF-16 reads, backward chunks and incremental parse fragments", () => {
+  const source = Array.from({ length: 2500 }, (_, i) => `const value${i} = "한글😀\\n";`).join(
+    "\n",
+  );
+
+  const doc = Text.of(source.split("\n"));
+  const input = documentInput(doc);
+  for (let i = 0; i < 5000; i++) {
+    const from = i % 5 === 0 ? doc.length : (i * 7919) % doc.length;
+    const chunk = input.chunk(from);
+    assert.equal(chunk, doc.iterRange(from).next().value);
+    const begin = Math.max(0, from - (i % 17));
+    const end = Math.min(doc.length, from + (i % 91));
+    assert.equal(input.read(begin, end), source.slice(begin, end));
+  }
+  let tree = parser.parse(input);
+  assert.equal(tree.toString(), parser.parse(source).toString());
+  let text = doc;
+  for (let i = 0; i < 30; i++) {
+    const from = (i * 277) % (text.length - 2);
+    const changes = ChangeSet.of({ from, to: from + 2, insert: i % 2 ? "'" : "😀" }, text.length);
+    const ranges = [];
+    changes.iterChangedRanges((fromA, toA, fromB, toB) => ranges.push({ fromA, toA, fromB, toB }));
+    const fragments = TreeFragment.applyChanges(TreeFragment.addTree(tree), ranges);
+    text = changes.apply(text);
+    tree = parser.parse(documentInput(text), fragments);
+    assert.equal(tree.toString(), parser.parse(text.toString(), fragments).toString());
+  }
+});
+
+test("admission starts idle input immediately and coalesces the rest of a bounded burst", () => {
   const policy = createUpdateAdmission();
-  for (let now = 0; now <= 180; now += 30) assert.equal(policy.input(now, false), 40);
-  assert.equal(policy.input(210, false), 30);
-  assert.equal(policy.input(240, false), 0);
-  policy.started(8, 240);
-  policy.settled(7, 1000); // An obsolete acknowledgement cannot poison the estimate.
-  policy.settled(8, 440);
-  assert.equal(policy.input(1000, false), 40);
-  assert.equal(policy.input(1030, false), 106);
+  assert.equal(policy.input(0, false), 0);
+  policy.started(1, 0);
+  policy.settled(1, 4);
+  for (let now = 30; now < 270; now += 30) {
+    const delay = policy.input(now, false);
+    assert.ok(delay > 0 && now + delay <= 270);
+  }
+  assert.equal(policy.input(270, false), 0);
+  policy.started(2, 270);
+  policy.settled(2, 275);
+  assert.equal(policy.input(1000, false), 0);
   policy.reset();
-  assert.equal(policy.input(2000, true), 0);
+  assert.equal(policy.input(1001, false), 0);
   const fixed = createUpdateAdmission(120);
   assert.equal(fixed.input(0, false), 120);
   assert.equal(fixed.input(1000, false), 120);
   assert.equal(fixed.input(1010, true), 0);
 });
 
-test("settling a compile preserves a newer input burst and ignores stale acknowledgements", () => {
-  const policy = createUpdateAdmission();
-  assert.equal(policy.input(0, false), 40);
-  policy.started(1, 40);
-  assert.equal(policy.input(60, false), 75);
-  policy.settled(1, 100);
-  assert.equal(policy.input(120, false), 75);
-  policy.started(2, 195);
-  policy.settled(1, 1000);
-  assert.equal(policy.input(210, false), 93.75);
-  policy.settled(2, 220);
-  assert.equal(policy.input(240, false), 65.625);
-  policy.started(3, 306);
-  policy.settled(3, 310);
-  assert.equal(policy.input(320, false), 40);
+test("settlement retains input cadence without letting stale acknowledgements change admission", () => {
+  const policies = [createUpdateAdmission(), createUpdateAdmission()];
+  for (const policy of policies) {
+    policy.input(0, false);
+    policy.started(1, 0);
+    assert.ok(policy.input(30, false) > 0);
+    policy.settled(1, 50);
+    assert.ok(policy.input(60, false) > 0);
+    policy.started(2, 100);
+  }
+  policies[0].settled(1, 1000);
+  assert.equal(policies[0].input(120, false), policies[1].input(120, false));
+  for (const policy of policies) {
+    policy.settled(2, 140);
+    policy.input(150, false);
+    policy.input(200, false);
+    policy.started(3, 210);
+    policy.settled(3, 215);
+    assert.ok(
+      policy.input(220, false) > 0,
+      "fast completion does not turn typing into idle bursts",
+    );
+    policy.reset();
+    assert.equal(policy.input(221, false), 0);
+  }
 });

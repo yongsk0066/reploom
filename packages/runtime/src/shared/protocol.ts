@@ -12,7 +12,7 @@ import type { ManagedState } from "../project/snapshot.ts";
 export type { Files } from "../project/definition.ts";
 
 // Reploom wire contract, independent of bundler-private helpers or a dev server.
-export const PROTOCOL = 7 as const;
+export const PROTOCOL = 8 as const;
 
 export const MODULE_ABI = 4 as const;
 
@@ -274,6 +274,12 @@ export type CompilerCommand =
   | { protocol: typeof PROTOCOL; type: "dispose"; projectId: string };
 
 export type CompilerReply =
+  | {
+      protocol: typeof PROTOCOL;
+      type: "prepared";
+      compiler: Asset;
+      error?: string;
+    }
   | {
       protocol: typeof PROTOCOL;
       type: "module";

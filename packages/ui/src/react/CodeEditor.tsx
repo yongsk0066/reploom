@@ -15,6 +15,7 @@ type Props = {
   invalid: boolean;
   activation?: "eager" | "interaction";
   labels: Pick<PlaygroundLabels, "edit" | "editorFallback">;
+  onIntent?(): void;
   onChange: Parameters<typeof createEditor>[1];
 };
 
@@ -87,7 +88,12 @@ export default function CodeEditor(props: Props) {
     if (props.selection) activate(true);
   }, [props.selection]);
   return (
-    <div className="reploom-code-editor" data-editor-ready={loaded}>
+    <div
+      className="reploom-code-editor"
+      data-editor-ready={loaded}
+      onFocusCapture={props.onIntent}
+      onPointerDown={props.onIntent}
+    >
       <div ref={host} hidden={!loaded} />
       {!activated ? (
         <>

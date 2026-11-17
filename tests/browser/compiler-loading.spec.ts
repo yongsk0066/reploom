@@ -1,5 +1,41 @@
 import { test, expect } from "@playwright/test";
 
+test("explicit compiler preparation shares its task and preserves the displayed revision", async ({
+  page,
+}) => {
+  const requests: string[] = [];
+  page.on("request", (request) => requests.push(request.url()));
+  await page.goto("/features/?project=react");
+  await expect(page.locator("body")).toHaveAttribute("data-phase", "ready");
+  expect(requests.filter((url) => /\.wasm$|compiler-worker/.test(url))).toEqual([]);
+  const button = page.frameLocator("iframe").getByRole("button");
+  await button.click();
+
+  const same = await page.evaluate(async () => {
+    const session = (window as any).session;
+    const before = session.getSnapshot();
+    const first = session.prepare();
+    const second = session.prepare();
+    await Promise.all([first, second]);
+    return { task: first === second, snapshot: before === session.getSnapshot() };
+  });
+
+  expect(same).toEqual({ task: true, snapshot: true });
+  expect(requests.filter((url) => url.endsWith(".wasm"))).toHaveLength(1);
+  await page.evaluate(() => {
+    const session = (window as any).session;
+    session.change(
+      "/Counter.tsx",
+      session.getSnapshot().files["/Counter.tsx"].toString() + "\nexport const prepared=true;",
+    );
+  });
+  await expect(page.locator("body")).toHaveAttribute("data-phase", "ready");
+  await expect(button).toHaveText("count 1");
+  await button.click();
+  await expect(button).toHaveText("count 2");
+  expect(requests.filter((url) => url.endsWith(".wasm"))).toHaveLength(1);
+});
+
 test("prepared compiler identity is checked before WASM loading", async ({ page }) => {
   const requests: string[] = [];
   page.on("request", (request) => requests.push(request.url()));

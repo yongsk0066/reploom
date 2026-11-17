@@ -200,7 +200,7 @@ export function createBrowserPlatform(options: BrowserPlatformOptions) {
       async prepare(projectId, compiler, signal) {
         const client = await getCompiler(signal);
         // The session may have unmounted while the lazy chunk was downloading.
-        if (!signal.aborted) client.prepare(projectId, compiler, signal);
+        if (!signal.aborted) await client.prepare(projectId, compiler, signal);
       },
       async compile(input, signal) {
         const client = await getCompiler(signal);

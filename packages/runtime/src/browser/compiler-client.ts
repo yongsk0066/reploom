@@ -39,6 +39,14 @@ export function createCompilerClient(createWorker: () => Worker, limits: Compile
   let worker: Worker | undefined;
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
   let prepared = false;
+  let readyCompiler: string | undefined;
+
+  const preparations = new Set<{
+    projectId: string;
+    compiler: string;
+    finish(error?: unknown): void;
+  }>();
+
   // A single immutable Module may outlive an idle Worker; no Instance/Memory does.
   // The last lease or a bounded timeout releases compiled machine code as well.
   let compiled: { key: string; module: WebAssembly.Module } | undefined;
@@ -95,9 +103,15 @@ export function createCompilerClient(createWorker: () => Worker, limits: Compile
   function retireWorker() {
     clearTimeout(idleTimer);
     idleTimer = undefined;
-    worker?.terminate();
+    if (worker) {
+      worker.onmessage = worker.onerror = null;
+      worker.terminate();
+    }
     worker = undefined;
     prepared = false;
+    readyCompiler = undefined;
+    for (const task of preparations)
+      task.finish(new DOMException("Compiler retired", "AbortError"));
     sent.clear();
     received.clear();
     deliveries.clear();
@@ -111,6 +125,7 @@ export function createCompilerClient(createWorker: () => Worker, limits: Compile
   }
 
   function failAll(error: Error) {
+    for (const task of preparations) task.finish(error);
     retireWorker();
     forgetModule();
     owners.clear();
@@ -122,6 +137,8 @@ export function createCompilerClient(createWorker: () => Worker, limits: Compile
   }
 
   function release(projectId: string) {
+    for (const task of preparations)
+      if (task.projectId === projectId) task.finish(new DOMException("Aborted", "AbortError"));
     destinations.delete(projectId);
     owners.delete(projectId);
     sent.delete(projectId);
@@ -158,6 +175,23 @@ export function createCompilerClient(createWorker: () => Worker, limits: Compile
     pressure ||= bytes > maxMemoryBytes;
   }
 
+  function receiveEngine(data: Extract<CompilerReply, { type: string }>) {
+    if (data.type === "module") {
+      forgetModule();
+      compiled = { key: data.compiler.sha256, module: data.module };
+      moduleTimer = setTimeout(forgetModule, 5 * 60_000);
+    } else if (data.error) failAll(new Error(data.error));
+    else {
+      readyCompiler = data.compiler.sha256;
+      for (const task of preparations)
+        task.finish(
+          task.compiler === readyCompiler
+            ? undefined
+            : new Error("Compiler asset identity changed"),
+        );
+    }
+  }
+
   function ensureWorker() {
     if (disposed) throw new DOMException("Compiler client disposed", "AbortError");
     clearTimeout(idleTimer);
@@ -170,12 +204,7 @@ export function createCompilerClient(createWorker: () => Worker, limits: Compile
         connectDestination(projectId, destination);
       instance.onmessage = ({ data }: MessageEvent<CompilerReply>) => {
         if (worker !== instance || data.protocol !== PROTOCOL) return;
-        if ("type" in data && data.type === "module") {
-          forgetModule();
-          compiled = { key: data.compiler.sha256, module: data.module };
-          moduleTimer = setTimeout(forgetModule, 5 * 60_000);
-          return;
-        }
+        if ("type" in data) return receiveEngine(data);
         if (!("projectId" in data) || !sent.has(data.projectId)) return;
         recordMemory(data.memoryBytes);
         if (!data.ok && data.failure === "source-resync") {
@@ -218,21 +247,49 @@ export function createCompilerClient(createWorker: () => Worker, limits: Compile
     }
   }
 
-  function prepare(projectId: string, compiler: Asset, signal: AbortSignal) {
-    if (signal.aborted) return;
+  function prepare(projectId: string, compiler: Asset, signal: AbortSignal): Promise<void> {
+    if (signal.aborted) return Promise.resolve();
     ensureWorker();
     owners.add(projectId);
-    if (!prepared) {
-      post({
-        protocol: PROTOCOL,
-        type: "prepare",
+
+    const result = new Promise<void>((resolve, reject) => {
+      if (readyCompiler === compiler.sha256) return resolve();
+      if (readyCompiler) return reject(new Error("Compiler asset identity changed"));
+      const abort = () => task.finish(signal.reason);
+
+      const task = {
         projectId,
-        compiler,
-        module: cachedModule(compiler),
-      });
-      prepared = true;
+        compiler: compiler.sha256,
+        finish(error?: unknown) {
+          if (!preparations.delete(task)) return;
+          signal.removeEventListener("abort", abort);
+          if (error !== undefined) reject(error);
+          else resolve();
+        },
+      };
+
+      preparations.add(task);
+      signal.addEventListener("abort", abort, { once: true });
+    });
+
+    // Warming is optional for callers that start it without awaiting completion.
+    void result.catch(() => {});
+    try {
+      if (!prepared) {
+        prepared = true;
+        post({
+          protocol: PROTOCOL,
+          type: "prepare",
+          projectId,
+          compiler,
+          module: cachedModule(compiler),
+        });
+      }
+      scheduleRetirement();
+    } catch (error) {
+      failAll(error instanceof Error ? error : new Error(String(error)));
     }
-    scheduleRetirement();
+    return result;
   }
 
   function connectDestination(

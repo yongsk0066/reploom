@@ -154,6 +154,17 @@ test("optional tsrs type checking loads on demand, reports UTF-16 locations, reu
     ),
   ).toBe(1);
   await expect(preview.getByRole("button")).toHaveText("count 0");
+  expect((await page.evaluate(() => (window as any).session.check("types"))).diagnostics).toEqual(
+    failed.diagnostics,
+  );
+  await page.evaluate(() => {
+    const session = (window as any).session;
+    session.change(
+      "/label.ts",
+      session.getSnapshot().files["/label.ts"].toString() + "\n// next revision",
+    );
+  });
+  await expect(page.locator("body")).toHaveAttribute("data-phase", "ready");
   await page.evaluate(() => {
     (window as any).holdTypes = true;
     (window as any).pendingTypes = (window as any).session.check("types").then(
@@ -161,11 +172,7 @@ test("optional tsrs type checking loads on demand, reports UTF-16 locations, reu
       (error: Error) => error.name,
     );
   });
-  await page.waitForFunction(() =>
-    (window as any).ownedWorkers.some(
-      (worker: any) => worker.name === "reploom-typecheck" && !worker.retired,
-    ),
-  );
+  await page.waitForFunction(() => (window as any).heldTypeChecks === 1);
   await page.evaluate(() =>
     (window as any).session.change("/label.ts", "export const label='count';"),
   );

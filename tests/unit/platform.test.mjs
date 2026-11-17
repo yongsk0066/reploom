@@ -1,3 +1,8 @@
+import {
+  PROTOCOL,
+  MODULE_ABI,
+  PROGRAM_SCHEMA,
+} from "../../packages/runtime/src/shared/protocol.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -22,7 +27,11 @@ test(
 
     const program = declare(
       "program",
-      JSON.stringify({ schema: 8, abi: 4, resources: { assets: { "/image.png": binary } } }),
+      JSON.stringify({
+        schema: PROGRAM_SCHEMA,
+        abi: MODULE_ABI,
+        resources: { assets: { "/image.png": binary } },
+      }),
     );
 
     const sources = declare("sources", JSON.stringify({ "/a.js": "export{}" }));
@@ -35,8 +44,8 @@ test(
 
     const manifest = {
       schema: 2,
-      protocol: 7,
-      moduleABI: 4,
+      protocol: PROTOCOL,
+      moduleABI: MODULE_ABI,
       bootstrap,
       projects: {
         example: { sources, program, assets: { "/image.png": binary }, vendor: [vendor] },
@@ -302,8 +311,8 @@ test("a failed project load cancels its sibling downloads while another project 
 
   const manifest = {
     schema: 2,
-    protocol: 7,
-    moduleABI: 4,
+    protocol: PROTOCOL,
+    moduleABI: MODULE_ABI,
     bootstrap,
     projects: {
       first: { sources: blocked, program: bad, assets: {}, vendor: [shared] },

@@ -1,3 +1,4 @@
+import { PROTOCOL, MODULE_ABI, PROGRAM_SCHEMA } from "../packages/runtime/src/shared/protocol.ts";
 import { Text } from "@codemirror/state";
 import { documentChange } from "../packages/ui/src/codemirror/document-change.ts";
 import { createEngine } from "../crates/compiler/engine.mjs";
@@ -37,7 +38,7 @@ async function initialLoading() {
 
   const program = await declare(
     "program",
-    JSON.stringify({ schema: 8, abi: 4, resources: { assets } }),
+    JSON.stringify({ schema: PROGRAM_SCHEMA, abi: MODULE_ABI, resources: { assets } }),
   );
 
   const sources = await declare("sources", JSON.stringify({ "/a.js": "export{}" }));
@@ -46,8 +47,8 @@ async function initialLoading() {
 
   const manifest = {
     schema: 2,
-    protocol: 7,
-    moduleABI: 4,
+    protocol: PROTOCOL,
+    moduleABI: MODULE_ABI,
     bootstrap,
     projects: { example: { sources, program, assets, vendor: [vendor] } },
   };

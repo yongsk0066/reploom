@@ -7,6 +7,7 @@ import { chromium, firefox, webkit, expect } from "@playwright/test";
 
 const site = resolve(process.argv[2] ?? "artifacts/browser-site");
 const output = process.argv[3] ?? "artifacts/benchmarks/startup.json";
+const prepare = process.env.REPLOOM_STARTUP_PREPARE === "1";
 const probes = process.env.REPLOOM_STARTUP_PROBES !== "0";
 const requestDelayMs = Number(process.env.REPLOOM_STARTUP_REQUEST_DELAY ?? 0);
 const chromiumArgs = process.env.REPLOOM_STARTUP_CHROMIUM_ARGS?.split(" ") ?? [];
@@ -137,6 +138,13 @@ try {
             transferMode: "ReturnAsStream",
           });
 
+        const preparationMs = await page.evaluate(async (prepare) => {
+          if (!prepare) return 0;
+          const start = performance.now();
+          await window.session.prepare();
+          return performance.now() - start;
+        }, prepare);
+
         const observation = await page.evaluate(async () => {
           const start = performance.timeOrigin + performance.now();
           performance.mark("reploom-edit-start");
@@ -197,7 +205,7 @@ try {
           await mkdir(dirname(output), { recursive: true });
           await writeFile(output.replace(/\.json$/, `-${round}.trace.json`), data);
         }
-        samples.push(observation);
+        samples.push({ prepare, preparationMs, ...observation });
         console.log(
           engine,
           round,
@@ -225,12 +233,13 @@ try {
         date: new Date().toISOString(),
         site,
         probes,
+        prepare,
         tracing,
         requestDelayMs,
         chromiumArgs,
         manifest,
         scope:
-          "Three fresh processes per engine. Fixed zero admission delay, passive network observation. Optional Worker fetch/digest/compile/Instance probes add messages and identify stages; use probes:false samples for end-to-end comparison. The host records Worker creation/replies. A nonzero requestDelayMs adds that delay before every server response, not a network bandwidth model. Same-origin resources and React state verified. Chromium flags are experimental attribution controls, never product settings.",
+          "Three fresh processes per engine. Fixed zero admission delay, passive network observation. Optional Worker fetch/digest/compile/Instance probes add messages and identify stages; use probes:false samples for end-to-end comparison. The host records Worker creation/replies. With prepare enabled, session.prepare() finishes before the edit timer; preparationMs reports that separate cost. A nonzero requestDelayMs adds that delay before every server response, not a network bandwidth model. Same-origin resources and React state verified. Chromium flags are experimental attribution controls, never product settings.",
         results,
       },
       null,

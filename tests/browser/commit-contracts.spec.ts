@@ -221,3 +221,56 @@ test("type-check initialization is reused and its idle realm is eventually termi
     )
     .toBe(true);
 });
+
+test("type-check checkpoints preserve diagnostics across memory-pressure Worker retirement", async ({
+  page,
+}) => {
+  await open(page, "dom", "&typeMemory=1");
+
+  const results = await page.evaluate(async () => {
+    const host = window as any;
+
+    const files = Object.fromEntries(
+      Object.entries(host.session.getSnapshot().files).map(([path, source]) => [
+        path,
+        String(source),
+      ]),
+    );
+
+    files["/types.ts"] = Array.from(
+      { length: 2600 },
+      (_, i) => `export const item${i}: {value:number} = {value:${i}};`,
+    ).join("\n");
+    const results = [];
+    for (const value of ["1", "'bad'", "2"]) {
+      files["/extra.ts"] = `export const value: number = ${value};`;
+      results.push(
+        await host.platform.services.validation.types(files, new AbortController().signal),
+      );
+    }
+    const workers = host.ownedWorkers.filter((worker) => worker.name === "reploom-typecheck");
+    return {
+      results,
+      workers: workers.length,
+      retired: workers.filter((worker) => worker.retired).length,
+      metadata: workers.flatMap((worker) =>
+        worker.replies.map((reply) => ({
+          bytes: reply.buildInfoBytes,
+          checkpoint: reply.checkpoint,
+        })),
+      ),
+    };
+  });
+
+  expect(results.results[0]).toEqual([]);
+  expect(results.results[1]).toHaveLength(1);
+  expect(results.results[1][0].text).toContain("TS2322");
+  expect(results.results[2]).toEqual([]);
+  expect(results.workers).toBe(3);
+  expect(results.retired).toBe(3);
+  for (const metadata of results.metadata) {
+    expect(metadata.bytes).toBeGreaterThan(0);
+    expect(metadata.bytes).toBeLessThanOrEqual(1024 * 1024);
+    expect(metadata.checkpoint).toBe(true);
+  }
+});

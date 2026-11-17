@@ -10,6 +10,9 @@ const manifest = await platform.loadManifest();
 const editorActivation =
   new URLSearchParams(location.search).get("editor") === "interaction" ? "interaction" : "eager";
 
+const compilerActivation =
+  new URLSearchParams(location.search).get("compiler") === "interaction" ? "interaction" : "edit";
+
 const root = createRoot(document.getElementById("app")!);
 root.render(
   <StrictMode>
@@ -22,6 +25,7 @@ root.render(
           title={project.title}
           platform={platform}
           editorActivation={editorActivation}
+          compilerActivation={compilerActivation}
         />
       ))}
     </main>

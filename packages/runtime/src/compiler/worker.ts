@@ -75,11 +75,18 @@ export function startCompilerWorker(
           } catch {
             /* Unsupported Module cloning falls back to compilation on wake. */
           }
+          worker.postMessage({ protocol: PROTOCOL, type: "prepared", compiler: asset });
           return (activeEngine = loaded);
         })
         .catch((error) => {
           engine = undefined;
           identity = undefined;
+          worker.postMessage({
+            protocol: PROTOCOL,
+            type: "prepared",
+            compiler: asset,
+            error: String(error),
+          });
           throw error;
         }));
     },

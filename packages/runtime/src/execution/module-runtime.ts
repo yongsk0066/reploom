@@ -63,7 +63,11 @@ export type FactoryLoader = (
   debug?: ModuleDebug,
 ) => ModuleFactory | Promise<ModuleFactory>;
 
-type Binding = { id: string; record?: ModuleRecord; names?: string[]; slots?: ImportSlot[] };
+type NamespaceBinding = { id: string; record?: ModuleRecord };
+
+type NamedBinding = NamespaceBinding & { names: string[]; slots: ImportSlot[] };
+
+type Binding = NamespaceBinding | NamedBinding;
 
 type ModuleRecord = {
   state: ReturnType<typeof createManagedState>;
@@ -149,6 +153,7 @@ export function createModuleRuntime(
   let deadline = 0;
   let program: Compilation | undefined;
   const records = new Map<string, ModuleRecord>();
+  const subscribers = new Map<string, Set<NamedBinding>>();
   let failedModules = new Set<string>();
   const factories = new Map<string, { code: string; factory: ModuleFactory }>();
 
@@ -272,6 +277,10 @@ export function createModuleRuntime(
     if (!record || record.retired) return;
     for (const binding of record.bindings) {
       binding.record = records.get(binding.id) || binding.record;
+      if ("slots" in binding) {
+        const dependents = subscribers.get(binding.id);
+        if (dependents?.delete(binding) && dependents.size === 0) subscribers.delete(binding.id);
+      }
     }
     record.retired = true;
   }
@@ -289,12 +298,18 @@ export function createModuleRuntime(
     return slots;
   }
 
-  function publishBindings() {
-    for (const owner of records.values())
-      for (const binding of owner.bindings) {
-        if (!binding.slots || !binding.names) continue;
-        const target = records.get(binding.id);
-        if (!target || target === binding.record) continue;
+  // Only committed importers subscribe; retirement detaches their frozen bindings.
+  function publishBindings(published: readonly ModuleRecord[]) {
+    for (const owner of published)
+      for (const binding of owner.bindings)
+        if ("slots" in binding) {
+          let dependents = subscribers.get(binding.id);
+          if (!dependents) subscribers.set(binding.id, (dependents = new Set()));
+          dependents.add(binding);
+        }
+    for (const target of published)
+      for (const binding of subscribers.get(target.id) || []) {
+        if (target === binding.record) continue;
         binding.record = target;
         for (let slot = 0; slot < binding.names.length; slot++) {
           const name = binding.names[slot];
@@ -384,10 +399,11 @@ export function createModuleRuntime(
     const publishState = ready.map((record) => record.state.prepare());
     for (const publish of publishState) publish();
     for (const record of ready) {
+      retire(records.get(record.id));
       records.set(record.id, record);
       for (const [type, id] of record.registrations) policy.register(type, id);
     }
-    publishBindings();
+    publishBindings(ready);
     if ([...scope.records.values()].every((record) => record.finished)) {
       scope.phase = "committed";
       releaseEvaluation(scope);
@@ -745,7 +761,7 @@ export function createModuleRuntime(
       records.set(fresh.id, fresh);
       if (next.modules[fresh.id].kind === "js") policy.committed(fresh.id);
     }
-    publishBindings();
+    publishBindings(ready);
     for (const id of removed) {
       records.delete(id);
       factories.delete(id);
@@ -891,6 +907,7 @@ export function createModuleRuntime(
         const diagnostics: Diagnostic[] = [];
         for (const record of owned) diagnostics.push(...(await disposeRecord(record, true)));
         records.clear();
+        subscribers.clear();
         factories.clear();
         policy.dispose();
         failedModules.clear();

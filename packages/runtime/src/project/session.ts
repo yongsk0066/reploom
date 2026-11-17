@@ -133,7 +133,7 @@ export class ProjectSession {
   private abort?: AbortController;
   private preparation?: AbortController;
   private loading?: AbortController;
-  private preparing = false;
+  private preparing?: Promise<void>;
   private original?: LoadedProject;
   private lastGood?: { files: SourceFiles; output: ExecutableProgram };
   // Only the last serialization per file is retained. A WeakMap keyed by text
@@ -393,7 +393,7 @@ export class ProjectSession {
     this.sourceRevision = null;
     this.sourceEdits = {};
     this.materialized = undefined;
-    this.prepareCompiler();
+    void this.prepare();
     this.view = {
       ...this.view,
       active: Object.hasOwn(files, active) ? active : this.original.output.entry,
@@ -477,7 +477,7 @@ export class ProjectSession {
 
   change(path: string, code: SourceText, composing = false, edits?: readonly TextEdit[]) {
     if (this.disposed || !this.original || !Object.hasOwn(this.view.files, path)) return;
-    this.prepareCompiler();
+    void this.prepare();
     if (this.view.files[path] !== code) {
       const previous = this.sourceEdits[path];
       if (edits && edits.length <= 128 && previous !== null) {
@@ -502,19 +502,19 @@ export class ProjectSession {
     } else this.schedule(false, false, files);
   }
 
-  private prepareCompiler() {
+  prepare(): Promise<void> {
+    if (this.preparing) return this.preparing;
     if (
+      this.disposed ||
       !this.original ||
-      this.preparing ||
       !this.services.compiler.prepare ||
       this.view.state.phase === "editing" ||
       this.view.state.phase === "compiling"
     )
-      return;
+      return Promise.resolve();
     const controller = new AbortController();
     this.preparation?.abort();
     this.preparation = controller;
-    this.preparing = true;
     // Each editing burst can reacquire an idle compiler, without a speculative build.
     // Reader-only sessions remain free of Worker/WASM initialization cost.
     const resources = this.original.compilerResources(controller.signal);
@@ -527,13 +527,17 @@ export class ProjectSession {
       },
     );
 
-    void Promise.all([resources, preparing])
+    const task = Promise.all([resources, preparing])
+      .then(() => {})
       .catch(() => {
         // Preparation is optional; compilation remains the error/retry boundary.
       })
       .finally(() => {
-        if (this.preparation === controller) this.preparing = false;
+        if (this.preparing === task) this.preparing = undefined;
       });
+
+    this.preparing = task;
+    return task;
   }
 
   private schedule(immediate = false, restart = false, files = this.view.files) {
@@ -728,7 +732,7 @@ export class ProjectSession {
     this.invalidate();
     this.preparation?.abort();
     this.preparation = undefined;
-    this.preparing = false;
+    this.preparing = undefined;
     this.services.compiler.release(this.projectId);
     this.original = undefined;
     this.restoration = undefined;

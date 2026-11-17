@@ -1,9 +1,10 @@
 import { Text, ChangeSet } from "@codemirror/state";
-import { TreeFragment, type Input } from "@lezer/common";
+import { TreeFragment } from "@lezer/common";
 import { parser as javascript } from "@lezer/javascript";
 import { parser as css } from "@lezer/css";
 import { parser as json } from "@lezer/json";
 import { createTreeEncoder, type ParseRequest, type ParseReply } from "./tree-channel.ts";
+import { documentInput } from "./document-input.ts";
 
 const host = self as unknown as {
   onmessage: ((event: MessageEvent<ParseRequest>) => void) | null;
@@ -37,22 +38,13 @@ function yieldTask() {
   });
 }
 
-function input(doc: Text): Input {
-  return {
-    length: doc.length,
-    lineChunks: true,
-    chunk: (from) => doc.iterRange(from).next().value,
-    read: (from, to) => doc.sliceString(from, to),
-  };
-}
-
 async function drain() {
   if (running) return;
   running = true;
   try {
     while (current) {
       const request = current;
-      const parse = parsers[request.kind].startParse(input(document), fragments);
+      const parse = parsers[request.kind].startParse(documentInput(document), fragments);
       let deadline = performance.now() + 4;
       let tree;
       while (!(tree = parse.advance())) {

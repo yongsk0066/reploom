@@ -14,6 +14,7 @@ type UIProps = {
   title: string;
   id: string;
   activation: "eager" | "interaction";
+  compilerActivation: "edit" | "interaction";
   labels: PlaygroundLabels;
 };
 
@@ -77,9 +78,13 @@ const EditorPane = memo(function EditorPane({
   session,
   id,
   activation,
+  compilerActivation,
   labels,
   editorOptions,
-}: Pick<UIProps, "session" | "id" | "activation" | "labels" | "editorOptions">) {
+}: Pick<
+  UIProps,
+  "session" | "id" | "activation" | "compilerActivation" | "labels" | "editorOptions"
+>) {
   const view = useProject(session, editorOf, shallow);
   return (
     <div className="reploom-editor">
@@ -113,6 +118,13 @@ const EditorPane = memo(function EditorPane({
           activation={activation}
           labels={labels}
           describedBy={`${id}-hint${view.errors ? ` ${id}-errors` : ""}`}
+          onIntent={
+            compilerActivation === "interaction"
+              ? () => {
+                  void session.prepare();
+                }
+              : undefined
+          }
           onChange={(...args) => session.change(...args)}
         />
       )}
@@ -208,6 +220,7 @@ export type PlaygroundProps = {
   platform: BrowserPlatform;
   title: string;
   editorActivation?: "eager" | "interaction";
+  compilerActivation?: "edit" | "interaction";
   labels?: Partial<PlaygroundLabels>;
 };
 
@@ -244,6 +257,7 @@ function ProjectUI({
   platform,
   session,
   editorActivation = "eager",
+  compilerActivation = "edit",
   editorOptions,
   labels,
 }: PlaygroundProps & { session: ProjectSession; labels: PlaygroundLabels }) {
@@ -291,6 +305,7 @@ function ProjectUI({
           session={session}
           id={id}
           activation={editorActivation}
+          compilerActivation={compilerActivation}
           editorOptions={editorOptions}
           labels={labels}
         />

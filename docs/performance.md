@@ -4,11 +4,13 @@ Reploom prepares dependencies and initial programs at build time. A page can dis
 
 ## Work on the critical path
 
-The editor passes incremental UTF-16 spans across the language and compiler Worker boundaries. It retains CodeMirror's persistent text tree, undo history, and input handling. Large-document syntax analysis runs in a separate Worker; a completed tree is published after checking the active document and revision. Status-only synchronization does not read scroll geometry.
+The editor passes incremental UTF-16 spans across the language and compiler Worker boundaries. It retains CodeMirror's persistent text tree, undo history, and input handling. Large-document syntax analysis runs in a separate Worker; a completed tree is published after checking the active document and revision. A persistent Worker-side text cursor avoids repeated line-by-line tree seeks. Status-only synchronization does not read scroll geometry. The default language configuration includes syntax, indentation, and JSX closing tags while leaving unused completion data out of the editor bundle.
 
-Compilation reuses unchanged transforms and resolved artifacts. Changed executable modules travel directly to the preview through a MessagePort, while debug-only changes follow their own channel. Acknowledgements establish the base revision for subsequent deltas, and superseded work never publishes a partial graph.
+Compilation reuses unchanged transforms and resolved artifacts. Changed executable modules travel directly to the preview through a MessagePort, while debug-only changes follow their own channel. Idle first edits enter the next task; continued typing coalesces according to input cadence and observed update cost. Named-binding publication follows a dependency-to-importer index. Acknowledgements establish the base revision for subsequent deltas, and superseded work never publishes a partial graph.
 
 The parser batches character runs that follow a stable lexical transition. The linker uses semantic identifiers, an import index, and direct AST construction. These paths reduce repeated work while retaining scope, live-binding, source-map, and cleanup semantics.
+
+Optional type checks reuse exact diagnostic results for unchanged sources and incremental file signatures for larger projects. A memory-pressure retirement separates the old WASM execution memory from a short-lived checkpoint of reusable code and metadata, avoiding a complete restart of checker preparation. First checks still build this metadata, so small projects use ordinary checking by default.
 
 Remaining costs include editor layout and paint, parsing a large individual token, the first WASM compilation and call, decoding initial assets, and framework execution. Compiler and language Workers have independent queues and idle retirement. Cache limits bound optional retention; active source graphs, framework state, editor history, and WASM capacity remain separate working sets.
 
@@ -27,7 +29,9 @@ Build first and install the three Playwright browsers. Workloads write JSON to i
 | `node benchmarks/lexer.mjs` | Scalar and batched scanner comparison plus structural conformance |
 | `node benchmarks/lexer-worker.mjs` | Scanner variants inside the minified language Worker |
 | `node benchmarks/editor-sync.mjs` | Status synchronization, layout-read counts, and document lifecycle checks |
-| `pnpm bench:typecheck` | Cold versus reused type-check Workers |
+| `pnpm bench:typecheck` | Cold checks, exact-result reuse, and idle Worker ownership |
+| `node benchmarks/update-delay.mjs` | First, adjacent, idle, and burst edits; optional `REPLOOM_DELAY_BASELINE` site |
+| `node benchmarks/startup-phases.mjs` | Compiler startup stages; optional `REPLOOM_STARTUP_PREPARE=1` separates preparation from first-edit timing |
 
 `pnpm bench:parser <baseline.wasm>` compares a compatible host-ABI-3 compiler against the committed compiler. It checks output, diagnostics, recovery, and WASM capacity. The `--bounded-baseline` option enables resource-intensive cases on both versions; use it only when the baseline supports the same speculation and nesting policies.
 
@@ -46,7 +50,7 @@ Run comparisons with the same inputs, dependency graph, browser configuration, a
 
 ## Inspect memory
 
-`node benchmarks/editor-memory.mjs` measures the current editor over repeated edits, Worker retirement, reseeding, and disposal. `REPLOOM_MEMORY_GC=1` enables a separate weak-reference diagnostic. `pnpm bench:typecheck-memory` measures type-check Worker policies. These process-RSS harnesses use macOS process accounting, including detached WebKit services; they should run without other browser automation.
+`node benchmarks/editor-memory.mjs` measures the current editor over repeated edits, Worker retirement, reseeding, and disposal. `REPLOOM_MEMORY_BASELINE` selects a compatible checkout for alternating comparisons with the same harness; `REPLOOM_MEMORY_ROUNDS` controls repetitions. `REPLOOM_MEMORY_GC=1` enables a separate weak-reference diagnostic, records failed collections, and fails after saving every trial. `pnpm bench:typecheck-memory` measures type-check Worker policies. These process-RSS harnesses use macOS process accounting, including detached WebKit services; they should run without other browser automation.
 
 RSS measures process and allocator retention. A weak-reference check after GC measures object liveness. Heap snapshots may themselves trigger collection, and Rust deallocation does not shrink the WASM linear-memory high-water mark. Use owner-level checks for Workers, message ports, object URLs, syntax graphs, and Views to distinguish retained resources from reusable capacity.
 
@@ -54,4 +58,4 @@ RSS measures process and allocator retention. A weak-reference check after GC me
 
 `artifacts/audit/packages.json` contains minified and gzip sizes for all emitted host JavaScript chunks, including lazy chunks. It excludes prepared preview dependencies, WASM, CSS, and browser memory. Headless imports exclude React and CodeMirror; React examples still load their prepared framework bundle inside the preview.
 
-Browser tests verify that the compiler Worker and WASM are not requested before editing. Packed-consumer tests validate the same package boundaries outside the workspace. Re-run those checks when changing loading, transport, or bundling, alongside state preservation, cancellation, and disposal tests.
+Browser tests verify that the default activation policy requests neither the compiler Worker nor WASM before editing, and that optional preparation preserves the displayed revision. Packed-consumer tests validate the same package boundaries outside the workspace. Re-run those checks when changing loading, transport, or bundling, alongside state preservation, cancellation, and disposal tests.

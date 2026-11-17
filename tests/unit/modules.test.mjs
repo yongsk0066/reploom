@@ -193,6 +193,15 @@ test("retired cleanup keeps old imports when an export disappears from a retaine
 
   assert.equal(cleanup(), "cleaned");
   assert.equal(next.entry.default(), 2);
+  for (const value of [3, 4, 5]) {
+    const latest = await p.apply({
+      "/App.js": `import { value } from './value.js'; export default function App() { return value; }`,
+      "/value.js": `export const value = ${value}; import.meta.hot.acceptExports(['value']);`,
+    });
+
+    assert.equal(latest.entry.default(), value);
+    assert.equal(cleanup(), "cleaned");
+  }
 });
 
 test("component boundaries stop propagation; changed export shape invalidates the parent", async (t) => {

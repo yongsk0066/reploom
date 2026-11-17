@@ -19,14 +19,13 @@ export function createUpdateAdmission(fixedDelay?: number): UpdateAdmission {
         return 0;
       }
       if (fixedDelay !== undefined) return fixedDelay;
-      const continuing = first !== undefined || running !== undefined;
-      if (last !== undefined) {
-        const gap = Math.max(0, now - last);
-        interval = gap <= 250 ? (interval ? interval * 0.5 + gap * 0.5 : gap) : 0;
-      }
+      const gap = last === undefined ? Infinity : Math.max(0, now - last);
+      const quiet = Math.min(120, Math.max(40, cost * 2));
+      const continuing = first !== undefined || running !== undefined || gap < quiet;
+      interval = continuing && gap <= 250 ? (interval ? interval * 0.5 + gap * 0.5 : gap) : 0;
       first ??= now;
       last = now;
-      const trailing = continuing ? Math.min(120, Math.max(40, interval * 1.25, cost * 2)) : 40;
+      const trailing = continuing ? Math.min(120, Math.max(40, interval * 1.25, cost * 2)) : 0;
       return Math.max(0, Math.min(trailing, first + 240 - now));
     },
     started(revision, now) {
@@ -37,10 +36,6 @@ export function createUpdateAdmission(fixedDelay?: number): UpdateAdmission {
       if (running?.revision !== revision) return;
       cost = cost * 0.75 + Math.min(200, Math.max(0, now - running.start)) * 0.25;
       running = undefined;
-      if (first === undefined) {
-        last = undefined;
-        interval = 0;
-      }
     },
     reset() {
       first = last = undefined;
