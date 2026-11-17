@@ -59,7 +59,8 @@ const editor = await build({
   minify: true,
   legalComments: "inline",
   metafile: true,
-  external: ["@yongsk0066/reploom", "@yongsk0066/reploom-ui/language-worker", "react"],
+  loader: { ".css": "text" },
+  external: ["@yongsk0066/reploom", "@yongsk0066/reploom-ui/language-worker", "react", "react-dom"],
 });
 
 const notices = new Map();

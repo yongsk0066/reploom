@@ -1,189 +1,398 @@
-.reploom {
-  color: var(--reploom-text, #e4e4e7);
-  background: var(--reploom-background, #18181b);
-  border: 1px solid var(--reploom-border, #3f3f46);
-  border-radius: 12px;
-  margin: 2.5rem 0;
-  overflow: hidden;
+:host {
+  display: block;
+  min-inline-size: 0;
+  font-size: var(--reploom-font-size, 0.8125rem);
 }
+
+.reploom {
+  --_background: var(--reploom-background, #18181b);
+  --_text: var(--reploom-text, #e4e4e7);
+  --_muted: var(--reploom-muted, #a1a1aa);
+  --_border: var(--reploom-border, #3f3f46);
+  --_surface: var(--reploom-surface, #202024);
+  --_hover: var(--reploom-hover, #303036);
+  --_focus: var(--reploom-focus, #a5b4fc);
+  --_height: var(--reploom-pane-height, 300px);
+  --_bar-height: 40px;
+  --_control-height: 32px;
+  container: reploom / inline-size;
+  min-inline-size: 0;
+  color: var(--_text);
+  background: var(--_background);
+  border: 1px solid var(--_border);
+  border-radius: var(--reploom-radius, 8px);
+  margin-block: var(--reploom-margin, 24px);
+  overflow: hidden;
+  font: inherit;
+  line-height: 1.5;
+  text-align: start;
+  color-scheme: dark;
+}
+
+.reploom,
+.reploom :where(div, button, select, textarea, pre, fieldset, dialog) {
+  box-sizing: border-box;
+}
+
+.reploom :where(button, select, input, textarea) {
+  font: inherit;
+  color: inherit;
+}
+
+.reploom :where(button, select) {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--reploom-control-radius, 4px);
+  padding: 4px 8px;
+  min-block-size: var(--_control-height);
+  min-inline-size: 24px;
+}
+
+.reploom button {
+  cursor: pointer;
+}
+
+.reploom button:hover:not(:disabled) {
+  background: var(--_hover);
+}
+
+.reploom button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.reploom :is(button, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--_focus);
+  outline-offset: -2px;
+}
+
 .reploom-heading {
+  padding: 8px 12px;
+  border-block-end: 1px solid var(--_border);
+}
+
+.reploom-heading h2 {
+  font-size: inherit;
+  margin: 0;
+  font-weight: 500;
+}
+
+.reploom-panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.reploom-editor,
+.reploom-preview {
+  min-inline-size: 0;
+}
+
+.reploom-preview {
+  border-block-start: 1px solid var(--_border);
+  background: white;
+  color: #18181b;
+  color-scheme: light;
+}
+
+.reploom-file-tabs,
+.reploom-preview-bar {
+  display: flex;
+  align-items: center;
+  block-size: max(var(--_bar-height), 3em);
+  background: var(--_surface);
+  color: var(--_text);
+  border-block-end: 1px solid var(--_border);
+}
+
+.reploom-file-tabs {
+  position: relative;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--_border) transparent;
+}
+
+.reploom-file-tabs button {
+  flex: none;
+  align-self: stretch;
+  padding-inline: 12px;
+  border: 0;
+  border-block-end: 2px solid transparent;
+  border-radius: 0;
+  white-space: nowrap;
+  color: var(--_muted);
+}
+
+.reploom-file-tabs button[aria-selected="true"] {
+  border-block-end-color: currentColor;
+  color: var(--_text);
+}
+
+.reploom-preview-bar {
+  justify-content: space-between;
+  gap: 8px;
+  padding-inline: 12px 4px;
+}
+
+.reploom-reload {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reploom-reload svg {
+  inline-size: 16px;
+  block-size: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.reploom-code-editor,
+.reploom-preview-mount,
+.reploom-preview-loading {
+  block-size: var(--_height);
+}
+
+.reploom-code-editor > div:not([hidden]),
+.reploom-code-editor .cm-editor {
+  block-size: 100%;
+}
+
+.reploom-editor textarea,
+.reploom-source-preview {
+  display: block;
+  inline-size: 100%;
+  block-size: var(--_height);
+  resize: none;
+  background: #282c34;
+  color: #e4e4e7;
+  border: 0;
+  padding: 12px;
+  margin: 0;
+  font:
+    var(--reploom-code-size, 0.8125rem)/1.6 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+}
+
+.reploom-source-preview {
+  block-size: calc(var(--_height) - var(--_control-height));
+}
+
+.reploom-code-editor .cm-editor {
+  font-size: var(--reploom-code-size, 0.8125rem);
+}
+
+.reploom-code-editor .cm-scroller {
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  line-height: 1.6;
+}
+
+.reploom-code-editor .cm-editor.cm-focused {
+  outline: 2px solid var(--_focus);
+  outline-offset: -2px;
+}
+
+.reploom-code-editor .cm-content {
+  padding-block: 8px;
+}
+
+.reploom-preview iframe {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  border: 0;
+}
+
+.reploom-preview-loading {
+  margin: 0;
+  padding: 12px;
+}
+
+.reploom-toolbar,
+.reploom-feedback {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 1rem;
-  padding: 1.25rem 1.25rem 0;
+  gap: 4px 8px;
+  padding: 4px 8px;
+  border-block-start: 1px solid var(--_border);
 }
-.reploom-heading h2 {
-  font-size: 1.15rem;
-  margin: 0;
-}
+
+.reploom-view-controls,
 .reploom-actions {
   display: flex;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  gap: 4px;
 }
-.reploom button,
-.reploom select {
-  font: inherit;
-  color: inherit;
-  background: #27272a;
-  border: 1px solid #71717a;
-  border-radius: 5px;
-  padding: 0.5rem 0.75rem;
-  min-height: 40px;
+
+.reploom-view-controls button[aria-pressed="true"] {
+  background: var(--_hover);
+  border-color: var(--_border);
 }
-.reploom button {
-  cursor: pointer;
+
+.reploom-feedback {
+  align-items: baseline;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  color: var(--_muted);
 }
-.reploom button:hover {
-  background: #3f3f46;
-}
-.reploom button:disabled {
-  opacity: 0.5;
-  cursor: wait;
-}
-.reploom :is(button, select, textarea):focus-visible {
-  outline: 2px solid #a5b4fc;
-  outline-offset: 3px;
-}
-.reploom-hint {
-  color: #d4d4d8;
-  font-size: 0.875rem;
-  padding: 0 1.25rem;
-}
-.reploom-panes {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  border-block: 1px solid var(--reploom-border, #3f3f46);
-}
-.reploom-file-picker {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  padding: 0.75rem 1rem;
-}
-.reploom-file-picker select {
-  min-width: 0;
-  max-width: 100%;
-}
-.reploom-source-label {
-  display: block;
-  color: #d4d4d8;
-  font-size: 0.8rem;
-  padding: 0 1rem 0.5rem;
-}
-.reploom-editor textarea {
-  box-sizing: border-box;
-  display: block;
-  width: 100%;
-  height: 390px;
-  resize: vertical;
-  background: #111113;
-  color: #e4e4e7;
-  border: 0;
-  padding: 1rem;
-  font:
-    13px/1.65 ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    monospace;
-  tab-size: 2;
-  white-space: pre;
-  overflow: auto;
-}
-.reploom-editor {
-  min-width: 0;
-}
-.reploom-code-editor .cm-editor {
-  height: 390px;
-  font-size: 13px;
-}
-.reploom-code-editor .cm-scroller {
-  overflow: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  line-height: 1.65;
-}
-.reploom-code-editor .cm-editor.cm-focused {
-  outline: 2px solid #a5b4fc;
-  outline-offset: -2px;
-}
-.reploom-code-editor .cm-content {
-  padding-block: 12px;
-}
-.reploom-source-preview {
-  box-sizing: border-box;
-  height: 340px;
-  overflow: auto;
-  margin: 0;
-  padding: 1rem;
-  background: #111113;
-  color: #e4e4e7;
-  font:
-    13px/1.65 ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    monospace;
-  tab-size: 2;
-  white-space: pre;
-}
-.reploom-preview {
-  background: white;
-  color: #18181b;
-  min-width: 0;
-}
-.reploom-preview-label {
-  background: #27272a;
-  color: #e4e4e7;
-  padding: 1rem;
-  margin: 0;
-  font-size: 0.875rem;
-}
-.reploom-preview iframe {
-  display: block;
-  width: 100%;
-  height: 420px;
-  border: 0;
-}
+
 .reploom-status {
-  margin: 0.75rem 1.25rem;
-  font-size: 0.875rem;
-  color: #d4d4d8;
+  margin: 0;
+  flex: 1;
+  min-inline-size: 120px;
 }
+
+.reploom-help[open] {
+  inline-size: 100%;
+}
+
+.reploom-hint {
+  margin: 8px 0;
+  max-inline-size: 70ch;
+}
+
+.reploom summary {
+  cursor: pointer;
+  min-block-size: var(--_control-height);
+  align-content: center;
+}
+
 .reploom-errors {
   background: #381b22;
   color: #fecdd3;
-  padding: 1rem;
+  padding: 12px;
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: 0.85rem;
+  max-block-size: 200px;
+  overflow: auto;
+  font-size: 0.8125rem;
 }
-.reploom-console {
-  border-top: 1px solid #3f3f46;
-  padding: 0.75rem 1.25rem;
+
+.reploom-errors button {
+  text-decoration: underline;
 }
-.reploom-console summary {
-  cursor: pointer;
+
+.reploom-console,
+.reploom-tools {
+  border-block-start: 1px solid var(--_border);
+  padding: 4px 12px;
 }
+
 .reploom-console pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: 0.8rem;
-  max-height: 180px;
+  font-size: 0.75rem;
+  max-block-size: 180px;
   overflow: auto;
 }
-.reploom-loading {
-  padding: 1rem;
+
+.reploom-tools fieldset {
+  border: 1px solid var(--_border);
+  margin: 8px 0;
+  padding: 8px;
+  min-inline-size: 0;
 }
-@media (max-width: 760px) {
-  .reploom-panes {
-    grid-template-columns: minmax(0, 1fr);
+
+.reploom-tools :is(input, select) {
+  max-inline-size: 100%;
+  background: var(--_surface);
+  border: 1px solid var(--_border);
+  padding: 4px 8px;
+}
+
+.reploom-tools button {
+  margin: 4px;
+  border-color: var(--_border);
+}
+
+.reploom-reset-dialog {
+  background: var(--_background);
+  color: var(--_text);
+  border: 1px solid var(--_border);
+  border-radius: var(--reploom-radius, 8px);
+  max-inline-size: min(400px, calc(100% - 32px));
+  padding: 20px;
+  font: inherit;
+}
+
+.reploom-reset-dialog:modal {
+  overscroll-behavior: contain;
+}
+
+.reploom-reset-dialog::backdrop {
+  background: rgb(0 0 0 / 0.4);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.reploom-dialog-title {
+  margin-block: 0 8px;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.reploom-reset-dialog form {
+  display: flex;
+  justify-content: end;
+  gap: 8px;
+  margin-block-start: 20px;
+}
+
+.reploom-reset-dialog button {
+  border-color: var(--_border);
+}
+
+.reploom-loading {
+  min-block-size: 340px;
+  padding: 12px;
+}
+
+.reploom-sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.reploom[data-expanded="true"] {
+  --_height: var(--reploom-expanded-height, 600px);
+}
+
+.reploom[data-view="code"] .reploom-preview,
+.reploom[data-view="preview"] .reploom-editor {
+  display: none;
+}
+
+.reploom[data-view="preview"] .reploom-preview {
+  border: 0;
+}
+
+@container reploom (min-width: 560px) {
+  .reploom[data-view="split"] .reploom-panes {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
-  .reploom-editor textarea,
-  .reploom-code-editor .cm-editor {
-    height: 300px;
+  .reploom[data-view="split"] .reploom-preview {
+    border-block-start: 0;
+    border-inline-start: 1px solid var(--_border);
   }
-  .reploom-preview iframe {
-    height: 320px;
+}
+
+@media (pointer: coarse) {
+  .reploom {
+    --_control-height: 44px;
+    --_bar-height: 44px;
   }
 }

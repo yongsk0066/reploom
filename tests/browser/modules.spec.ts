@@ -21,7 +21,7 @@ test("module refresh preserves child/parent state and isolates evaluation, effec
   await expect(article).toHaveAttribute("data-phase", "ready");
 
   const edit = async (path: string, code: string) => {
-    await article.getByLabel("File", { exact: true }).selectOption(path);
+    await article.getByRole("tab", { name: path, exact: true }).click();
     await writeCode(article.getByRole("textbox", { name: `${path} code` }), code);
   };
 

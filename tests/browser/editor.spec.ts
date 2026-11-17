@@ -145,7 +145,7 @@ test("highlighted editor preserves per-file edits and undo, accepts Korean text,
   await editor.press("Enter");
   await page.keyboard.insertText("// 한글 편집 확인");
   await expect(article).toHaveAttribute("data-phase", "ready");
-  await article.getByLabel("File", { exact: true }).selectOption("/styles.css");
+  await article.getByRole("tab", { name: "/styles.css", exact: true }).click();
   const css = article.getByRole("textbox", { name: "/styles.css code" });
   const originalCSS = await readCode(css);
   await css.press("ControlOrMeta+End");
@@ -156,17 +156,23 @@ test("highlighted editor preserves per-file edits and undo, accepts Korean text,
     "rgb(10, 20, 30)",
   );
   await expect.poll(async () => (await colors()).length).toBeGreaterThan(1);
-  await article.getByLabel("File", { exact: true }).selectOption("/App.js");
+  await article.getByRole("tab", { name: "/App.js", exact: true }).click();
   expect(await readCode(editor)).toBe(original + "\n// 한글 편집 확인");
   await editor.press("ControlOrMeta+z");
   expect(await readCode(editor)).toBe(original);
-  await article.getByLabel("File", { exact: true }).selectOption("/styles.css");
+  await article.getByRole("tab", { name: "/styles.css", exact: true }).click();
   expect(await readCode(css)).toBe(originalCSS + "\nbody { color: rgb(10, 20, 30); }");
   await css.press("Tab");
-  expect(await page.evaluate(() => document.activeElement?.classList.contains("cm-content"))).toBe(
-    false,
-  );
+  expect(
+    await css.evaluate(
+      (element) => (element.getRootNode() as ShadowRoot).activeElement === element,
+    ),
+  ).toBe(false);
   await article.getByRole("button", { name: "Reset source" }).click();
+  await article
+    .getByRole("dialog")
+    .getByRole("button", { name: "Restore original", exact: true })
+    .click();
   expect(await readCode(editor)).toBe(original);
   await editor.press("ControlOrMeta+z");
   expect(await readCode(editor)).toBe(original);

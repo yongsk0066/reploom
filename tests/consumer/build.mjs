@@ -11,6 +11,7 @@ for (const name of [
   "@codemirror/state",
   "@lezer/common",
   "react",
+  "react-dom",
   "acorn",
   "oxc-transform",
   "magic-string",
@@ -110,7 +111,7 @@ const combined = await build({
   splitting: true,
   platform: "browser",
   metafile: true,
-  external: ["react"],
+  external: ["react", "react-dom"],
 });
 
 let editorImplementations = 0;

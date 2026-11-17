@@ -329,6 +329,10 @@ test("compute completion aborts run resources, delivers final coalesced progress
   await expect(compute.preview.getByLabel("Compute output")).toContainText('"previous": 1');
   const worker = (await workersNamed(page, "reploom-compute"))[0];
   await compute.article.getByRole("button", { name: "Reset source" }).click();
+  await compute.article
+    .getByRole("dialog")
+    .getByRole("button", { name: "Restore original", exact: true })
+    .click();
   await expect(compute.article).toHaveAttribute("data-phase", "ready");
   await expect(compute.preview.getByLabel("Compute output")).toContainText('"runs": 1');
   expect(page.workers()).not.toContain(worker);

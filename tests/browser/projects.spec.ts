@@ -25,7 +25,7 @@ async function open(page: Page, context: BrowserContext, id: string) {
 }
 
 async function edit(article: Locator, path: string, source: string) {
-  await article.getByLabel("File", { exact: true }).selectOption(path);
+  await article.getByRole("tab", { name: path, exact: true }).click();
   await writeCode(article.getByRole("textbox", { name: `${path} code` }), source);
 }
 
@@ -172,6 +172,10 @@ test("pure DOM mounts preserve explicit state, abort retired listeners and relea
   await expect(article).toHaveAttribute("data-phase", "ready");
   await expect(preview.getByRole("button")).toHaveText("Updated DOM 8");
   await article.getByRole("button", { name: "Reset source" }).click();
+  await article
+    .getByRole("dialog")
+    .getByRole("button", { name: "Restore original", exact: true })
+    .click();
   await expect(article).toHaveAttribute("data-phase", "ready");
   await expect(preview.getByRole("button")).toHaveText("DOM count 0");
   await expect(preview.getByRole("textbox")).toHaveValue("");

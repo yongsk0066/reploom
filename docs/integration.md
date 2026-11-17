@@ -91,7 +91,6 @@ The React view connects to the same session API described below.
 import { createRoot } from "react-dom/client";
 import { createBrowserPlatform } from "@yongsk0066/reploom/browser";
 import { Playground } from "@yongsk0066/reploom-ui/react";
-import "@yongsk0066/reploom-ui/styles.css";
 
 export function mountExample(host: HTMLElement) {
   const platform = createBrowserPlatform({ manifestUrl: "/reploom/manifest.json" });
@@ -110,7 +109,11 @@ By default, `Playground` mounts the full editor eagerly. Setting `editorActivati
 
 Set `compilerActivation="interaction"` to start compiler preparation on editor focus or pointer input; its default, `"edit"`, keeps read-only sessions free of compiler downloads. This option moves startup work before the first edit and may download resources for an interaction that never becomes an edit.
 
-Customize the host UI through the `labels` prop; the React entry exports `defaultLabels` and `PlaygroundLabels`. Compiler diagnostics and compute output have separate text. Styles use the `reploom-` class prefix and read `--reploom-background`, `--reploom-text`, and `--reploom-border` from `.reploom`.
+The React view uses an open Shadow DOM with a stylesheet shared by instances in the same document. Install matching `react` and `react-dom` peers; the view uses a portal in the existing React tree. It includes its own CSS, so importing `styles.css` is unnecessary. The headless and CodeMirror entry points still work without either React package.
+
+Customize text through `labels` (`defaultLabels` and `PlaygroundLabels` are exported). Set theme properties such as `--reploom-background`, `--reploom-text`, `--reploom-border`, and `--reploom-radius` on the host or an ancestor. Page selectors no longer reach internal controls. See the [interface contract](interface.md) for layout, sizing, keyboard behavior, and supported styling channels.
+
+Use `showTitle={false}` when surrounding content already names the example, `showTools={false}` for a reading-focused embed, and `defaultView="preview"` or `"code"` to choose a single initial pane. The default `"split"` view shows both panes and stacks them in containers narrower than 560px. Switching views and expanding panels keep the editor and preview mounted.
 
 The view's Project tools panel exposes file operations, JSON download/upload, restoration of the last saved archive, and prepared checks. State capture is an explicit checkbox. New UI strings are part of `PlaygroundLabels`.
 
@@ -124,7 +127,7 @@ const editor = createEditor(container, onChange, {
 });
 ```
 
-At the threshold, parsing moves to an editor-owned Worker; smaller files use the local parser. The default factory lazily imports the prepared `@yongsk0066/reploom-ui/language-worker` source and creates a Blob Worker, requiring the host's `worker-src` policy to permit `blob:`. Hosts can supply `language.createWorker(signal)` to load that same prepared source through their own deployment path. The signal cancels pending creation, and the adapter terminates a Worker returned after cancellation. Setting `language: false` selects local parsing for every file. In React, pass these options through `editorOptions`; they are captured when the editor mounts.
+At the threshold, parsing moves to an editor-owned Worker; smaller files use the local parser. The default factory lazily imports the prepared `@yongsk0066/reploom-ui/language-worker` source and creates a Blob Worker, requiring the host's `worker-src` policy to permit `blob:`. Hosts can supply `language.createWorker(signal)` to load that same prepared source through their own deployment path. The signal cancels pending creation, and the adapter terminates a Worker returned after cancellation. Setting `language: false` selects local parsing for every file. In React, pass these options through `editorOptions`; they are captured when the editor mounts. Diagonal wheel gestures lock to their first dominant axis by default; use `scrollAxisLock: false` to keep unrestricted native wheel behavior. Native single-axis wheels, touch panning, and zoom remain available.
 
 Syntax queries for large files become complete asynchronously. Integrations that require the full syntax tree should observe CodeMirror's `syntaxTreeAvailable`; a synchronous parse request cannot wait for a Worker response. Text edits, selection, composition, and undo remain available while analysis runs.
 

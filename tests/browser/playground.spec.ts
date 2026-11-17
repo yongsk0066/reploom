@@ -87,11 +87,11 @@ test("three React effect fixtures run and edit with all external services blocke
   await expect(preview.getByRole("checkbox")).toBeChecked();
 
   // Edit CSS and an imported module, keeping the App edit across file changes.
-  await article.getByLabel("File", { exact: true }).selectOption("/styles.css");
+  await article.getByRole("tab", { name: "/styles.css", exact: true }).click();
   const css = article.getByRole("textbox", { name: "/styles.css code" });
   await writeCode(css, (await readCode(css)) + "\nbody { background: rgb(230, 240, 250); }");
   await expect(preview.locator("body")).toHaveCSS("background-color", "rgb(230, 240, 250)");
-  await article.getByLabel("File", { exact: true }).selectOption("/notifications.js");
+  await article.getByRole("tab", { name: "/notifications.js", exact: true }).click();
   const notifications = article.getByRole("textbox", { name: "/notifications.js code" });
   await writeCode(
     notifications,
@@ -102,7 +102,7 @@ test("three React effect fixtures run and edit with all external services blocke
   ).toBeVisible();
   await expect(preview.locator("h1")).toContainText("Recovered");
 
-  await article.getByLabel("File", { exact: true }).selectOption("/App.js");
+  await article.getByRole("tab", { name: "/App.js", exact: true }).click();
   await writeCode(editor, original.replace("Room:", "Intermediate revision"));
   await writeCode(editor, original.replace("Room:", "Latest revision"));
   await expect(preview.locator("h1")).toContainText("Latest revision");
@@ -132,6 +132,10 @@ test("three React effect fixtures run and edit with all external services blocke
       `Independent session ${index + 1}`,
     );
     await sibling.getByRole("button", { name: "Reset source" }).click();
+    await sibling
+      .getByRole("dialog")
+      .getByRole("button", { name: "Restore original", exact: true })
+      .click();
     await expect(sibling.frameLocator("iframe").locator("h1")).toContainText("Room: general");
   }
   await expect(preview.locator("h1")).toContainText("Latest revision");
@@ -139,6 +143,10 @@ test("three React effect fixtures run and edit with all external services blocke
   await writeCode(editor, original + '\nthrow new Error("Runtime error probe");');
   await expect(article.locator(".reploom-errors")).toContainText("Runtime error probe");
   await article.getByRole("button", { name: "Reset source" }).click();
+  await article
+    .getByRole("dialog")
+    .getByRole("button", { name: "Restore original", exact: true })
+    .click();
   await expect(preview.locator("h1")).toContainText("Room: general");
   expect(await readCode(editor)).toBe(original);
   await expect(article.locator(".reploom-errors")).toBeHidden();
@@ -202,6 +210,10 @@ test("reset and newer edits supersede a delayed first compiler load", async ({ p
   await writeCode(editor, original.replace("Room:", "Discarded revision"));
   await loading;
   await article.getByRole("button", { name: "Reset source" }).click();
+  await article
+    .getByRole("dialog")
+    .getByRole("button", { name: "Restore original", exact: true })
+    .click();
   await expect(article.frameLocator("iframe").locator("h1")).toContainText("Room: general");
   await writeCode(editor, original.replace("Room:", "Final revision"));
   release();

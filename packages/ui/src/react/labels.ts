@@ -17,6 +17,16 @@ export type PlaygroundLabels = {
   loading: string;
   rerun: string;
   reset: string;
+  resetDescription: string;
+  confirmReset: string;
+  cancel: string;
+  rerunHint: string;
+  view: string;
+  code: string;
+  split: string;
+  expand: string;
+  collapse: string;
+  help: string;
   file: string;
   preview: string;
   edit: string;
@@ -44,6 +54,17 @@ export const defaultLabels: Readonly<PlaygroundLabels> = Object.freeze({
   loading: "Loading example…",
   rerun: "Run again",
   reset: "Reset source",
+  resetDescription:
+    "Restore the original files and restart the preview? Your edits and current preview state will be lost.",
+  confirmReset: "Restore original",
+  cancel: "Cancel",
+  rerunHint: "Restart the preview with your current code. Preview state will reset.",
+  view: "View",
+  code: "Code",
+  split: "Both",
+  expand: "Expand",
+  collapse: "Collapse",
+  help: "Live updates",
   file: "File",
   preview: "Preview",
   edit: "Edit code",

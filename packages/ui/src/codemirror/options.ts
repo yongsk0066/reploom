@@ -5,4 +5,7 @@ export type LanguageAnalysisOptions = {
   onError?(error: unknown): void;
 };
 
-export type EditorOptions = { language?: LanguageAnalysisOptions | false };
+export type EditorOptions = {
+  language?: LanguageAnalysisOptions | false;
+  scrollAxisLock?: boolean;
+};

@@ -243,9 +243,15 @@ test("the bundled UI saves and restores explicit state, runs checks and manages 
   await expect(preview.locator("li")).toHaveCount(2);
   await article.getByLabel("Destination path").fill("/extra.ts");
   await article.getByRole("button", { name: "Add file", exact: true }).click();
-  await expect(article.getByLabel("File", { exact: true })).toHaveValue("/extra.ts");
+  await expect(article.getByRole("tab", { name: "/extra.ts", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
   await article.getByRole("button", { name: "Remove selected file" }).click();
-  await expect(article.getByLabel("File", { exact: true })).toHaveValue("/main.ts");
+  await expect(article.getByRole("tab", { name: "/main.ts", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
 });
 
 test("runtime source maps navigate the current revision and reject an obsolete location", async ({

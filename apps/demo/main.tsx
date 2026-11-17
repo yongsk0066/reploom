@@ -2,7 +2,6 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserPlatform } from "@yongsk0066/reploom/browser";
 import { Playground } from "@yongsk0066/reploom-ui/react";
-import "@yongsk0066/reploom-ui/styles.css";
 import "./style.css";
 
 const platform = createBrowserPlatform({ manifestUrl: "/reploom/manifest.json" });

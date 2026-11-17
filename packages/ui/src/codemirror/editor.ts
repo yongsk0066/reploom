@@ -1,3 +1,4 @@
+import { lockScrollAxis } from "./axis-scroll.ts";
 import { documentChange } from "./document-change.ts";
 import { Compartment, EditorSelection, EditorState, Text, Transaction } from "@codemirror/state";
 import {
@@ -161,6 +162,9 @@ export function createEditor(
   ];
 
   let view: EditorView | undefined = new EditorView({ parent });
+
+  let releaseScroll = options.scrollAxisLock === false ? undefined : lockScrollAxis(view.scrollDOM);
+
   return {
     sync(files: SourceFiles, active: string, attrs: Record<string, string>, reset: boolean) {
       if (!view) return;
@@ -229,6 +233,8 @@ export function createEditor(
     },
     destroy() {
       destroyed = true;
+      releaseScroll?.();
+      releaseScroll = undefined;
       analysis?.dispose();
       documents.clear();
       current = currentText = "";

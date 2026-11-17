@@ -89,7 +89,7 @@ test("Fast Refresh preserves React state, refs and DOM; CSS avoids effects; inco
   );
 
   const beforeCSS = await preview.locator("body").evaluate(() => (window as any).__effectRuns);
-  await article.getByLabel("File", { exact: true }).selectOption("/styles.css");
+  await article.getByRole("tab", { name: "/styles.css", exact: true }).click();
   const css = article.getByRole("textbox", { name: "/styles.css code" });
   await writeCode(css, (await readCode(css)) + "\nbody { background: rgb(210, 230, 240); }");
   await expect(preview.locator("body")).toHaveCSS("background-color", "rgb(210, 230, 240)");
@@ -100,7 +100,7 @@ test("Fast Refresh preserves React state, refs and DOM; CSS avoids effects; inco
   await expect(preview.getByRole("button")).toHaveText("count 4");
   await expect(preview.locator("output")).toHaveText(ref!);
 
-  await article.getByLabel("File", { exact: true }).selectOption("/App.js");
+  await article.getByRole("tab", { name: "/App.js", exact: true }).click();
 
   const extraHook = edited.replace(
     "const marker =",
@@ -137,10 +137,10 @@ test("custom hook signatures and module/render errors recover without publishing
   const hook = `import { useState } from 'react';
 export function useCounter() { const [count, setCount] = useState(0); return [count, setCount]; }`;
 
-  await article.getByLabel("File", { exact: true }).selectOption("/connection.js");
+  await article.getByRole("tab", { name: "/connection.js", exact: true }).click();
   const chat = article.getByRole("textbox", { name: "/connection.js code" });
   await writeCode(chat, hook);
-  await article.getByLabel("File", { exact: true }).selectOption("/App.js");
+  await article.getByRole("tab", { name: "/App.js", exact: true }).click();
 
   const app = `import { useCounter } from './connection.js';
 export default function App() { const [count, setCount] = useCounter(); return <button onClick={() => setCount(n => n + 1)}>custom {count}</button>; }`;
@@ -152,13 +152,13 @@ export default function App() { const [count, setCount] = useCounter(); return <
 
   await writeCode(editor, app.replace("custom", "updated"));
   await expect(preview.getByRole("button")).toHaveText("updated 1");
-  await article.getByLabel("File", { exact: true }).selectOption("/connection.js");
+  await article.getByRole("tab", { name: "/connection.js", exact: true }).click();
   await writeCode(chat, hook.replace("const [count", "const [extra] = useState(2); const [count"));
   await expect(preview.getByRole("button")).toHaveText("updated 0");
   await preview.getByRole("button").click();
   await expect(preview.getByRole("button")).toHaveText("updated 1");
 
-  await article.getByLabel("File", { exact: true }).selectOption("/App.js");
+  await article.getByRole("tab", { name: "/App.js", exact: true }).click();
   const updated = app.replace("custom", "updated");
   await writeCode(editor, updated + '\nthrow new Error("module failed");');
   await expect(article.locator(".reploom-errors")).toContainText("module failed");

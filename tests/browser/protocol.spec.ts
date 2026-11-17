@@ -213,12 +213,12 @@ test("retiring a pending lazy module releases resources without recreating the f
   const { article, preview, editor } = await open(page);
   await writeCode(editor, `export default function App(){return <h1>lazy-base</h1>;}`);
   await expect(preview.locator("h1")).toHaveText("lazy-base");
-  await article.getByLabel("File", { exact: true }).selectOption("/notifications.js");
+  await article.getByRole("tab", { name: "/notifications.js", exact: true }).click();
   await writeCode(
     article.getByRole("textbox", { name: "/notifications.js code" }),
     `globalThis.__lazyTest.active++; import.meta.hot.dispose(() => globalThis.__lazyTest.active--); await new Promise(() => {}); export const value=1;`,
   );
-  await article.getByLabel("File", { exact: true }).selectOption("/App.js");
+  await article.getByRole("tab", { name: "/App.js", exact: true }).click();
   await writeCode(
     editor,
     `globalThis.__lazyTest = { active: 0 }; globalThis.__lazyTest.pending = import('./notifications.js').catch(() => 'retired'); export default function App(){return <h1>lazy-active</h1>;}`,
@@ -303,7 +303,7 @@ test("acknowledged deltas resynchronize without losing state; vendor initializes
     await preview.locator("body").evaluate(() => document.querySelectorAll("script").length),
   ).toBe(1);
 
-  await article.getByLabel("File", { exact: true }).selectOption("/connection.js");
+  await article.getByRole("tab", { name: "/connection.js", exact: true }).click();
   const chat = article.getByRole("textbox", { name: "/connection.js code" });
   await writeCode(
     chat,
@@ -376,7 +376,7 @@ test("only the newest queued revision compiles after WASM loading while all file
     if (i === 1) await loading;
   }
   // A different file's patch must not be lost when the latest request supersedes App.
-  await article.getByLabel("File", { exact: true }).selectOption("/styles.css");
+  await article.getByRole("tab", { name: "/styles.css", exact: true }).click();
   const css = article.getByRole("textbox", { name: "/styles.css code" });
   await writeCode(css, (await readCode(css)) + "\nbody { background: rgb(200, 220, 230); }");
   await page.waitForFunction(() => (window as any).__wire.compiles.length === 6);
@@ -411,7 +411,7 @@ test("runtime regressions preserve state across reentrant import and keep commit
   const { article, preview } = await open(page);
 
   const edit = async (path: string, source: string) => {
-    await article.getByLabel("File", { exact: true }).selectOption(path);
+    await article.getByRole("tab", { name: path, exact: true }).click();
     await writeCode(article.getByRole("textbox", { name: `${path} code` }), source);
   };
 
