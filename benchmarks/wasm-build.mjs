@@ -56,7 +56,7 @@ const cases = [
     name: "effect-events",
     file: "/App.tsx",
     runtime: "react",
-    source: await readFile("examples/effect-events/App.tsx", "utf8"),
+    source: await readFile("apps/demo/examples/effect-events/App.tsx", "utf8"),
   },
   {
     name: "declarations-250k",

@@ -3,7 +3,7 @@ import { mkdir, writeFile, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { prepareProjects } from "@yongsk0066/reploom-build";
-import { projects } from "../../examples/projects.mjs";
+import { projects } from "./examples/projects.mjs";
 
 const root = fileURLToPath(new URL("./", import.meta.url));
 const out = path.join(root, "dist");
@@ -14,7 +14,7 @@ await prepareProjects({
   projectRoot: root,
   outDir: path.join(out, "reploom"),
   publicBase: "/reploom/",
-  publicDir: fileURLToPath(new URL("../../examples/", import.meta.url)),
+  publicDir: fileURLToPath(new URL("./examples/", import.meta.url)),
 });
 await build({
   entryPoints: [path.join(root, "main.tsx")],

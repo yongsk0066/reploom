@@ -5,12 +5,16 @@ import { createRequire } from "node:module";
 import { createServer } from "node:http";
 import { dirname } from "node:path";
 import { chromium, firefox, webkit } from "@playwright/test";
-import { scalarTransition, batchedTransition, characterRun } from "./editor/lexer-transition.mjs";
+import {
+  scalarTransition,
+  batchedTransition,
+  characterRun,
+} from "@reploom/tests/fixtures/editor/lexer-transition.mjs";
 import {
   boundaryCases,
   incrementalCases,
   recoveryCases,
-} from "../tests/fixtures/editor/lexer-cases.mjs";
+} from "@reploom/tests/fixtures/editor/lexer-cases.mjs";
 
 const require = createRequire(new URL("../packages/ui/package.json", import.meta.url));
 
@@ -24,7 +28,7 @@ const alias = Object.fromEntries(
 const bundles = {};
 for (const variant of ["before", "after"]) {
   const bundle = await build({
-    entryPoints: ["benchmarks/editor/lexer.ts"],
+    entryPoints: ["tests/fixtures/editor/lexer.ts"],
     bundle: true,
     write: false,
     format: "iife",

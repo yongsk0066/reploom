@@ -2,12 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import {
   scalarTransition,
   batchedTransition,
   characterRun,
-} from "../../benchmarks/editor/lexer-transition.mjs";
+} from "../fixtures/editor/lexer-transition.mjs";
 
 import { boundaryCases, incrementalCases, recoveryCases } from "../fixtures/editor/lexer-cases.mjs";
 
@@ -23,7 +24,7 @@ const alias = Object.fromEntries(
 const parsers = {};
 for (const variant of ["before", "after"]) {
   const bundle = await build({
-    entryPoints: ["benchmarks/editor/lexer.ts"],
+    entryPoints: [fileURLToPath(new URL("../fixtures/editor/lexer.ts", import.meta.url))],
     bundle: true,
     write: false,
     format: "esm",

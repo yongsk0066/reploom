@@ -10,7 +10,7 @@ const site = path.join(root, "artifacts/browser-site/features");
 await mkdir(site, { recursive: true });
 await prepareProjects({
   projects,
-  projectRoot: root,
+  projectRoot: fileURLToPath(new URL("../../", import.meta.url)),
   outDir: path.join(site, "assets"),
   publicBase: "/features/assets/",
   typecheck: { compilerOptions: { checkJs: false } },

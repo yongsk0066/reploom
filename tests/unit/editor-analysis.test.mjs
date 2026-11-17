@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import {
   createTreeEncoder,
@@ -75,7 +75,9 @@ test("syntax root retirement handles shared nodes, reappearance and invalid tran
 
 test("Worker document source agrees with the installed editor across UTF-16 multi-span changes", async () => {
   const bundle = await build({
-    entryPoints: ["packages/ui/vendor/codemirror-state/index.ts"],
+    entryPoints: [
+      fileURLToPath(new URL("../../packages/ui/vendor/codemirror-state/index.ts", import.meta.url)),
+    ],
     bundle: true,
     format: "esm",
     write: false,

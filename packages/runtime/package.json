@@ -38,6 +38,10 @@
   "dependencies": {
     "@jridgewell/trace-mapping": "0.3.31"
   },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0"
+  },
   "engines": {
     "node": ">=26"
   }

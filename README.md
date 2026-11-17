@@ -35,3 +35,4 @@ The headless entry points exclude React and CodeMirror, and all three packages s
 - [Architecture](docs/architecture.md): resource ownership, incremental compilation, and module lifecycle.
 - [Performance](docs/performance.md): bundle measurements and remaining costs.
 - [Development](docs/development.md): local checks, compiler rebuilds, and CI artifacts.
+- [Dependencies](docs/dependencies.md): library purposes, execution phases, and workspace ownership.

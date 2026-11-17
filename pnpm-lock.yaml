@@ -179,84 +179,21 @@ importers:
 
   .:
     devDependencies:
-      '@jridgewell/gen-mapping':
-        specifier: 0.3.13
-        version: 0.3.13
-      '@jridgewell/remapping':
-        specifier: 2.3.5
-        version: 2.3.5
-      '@jridgewell/trace-mapping':
-        specifier: 0.3.31
-        version: 0.3.31
-      '@lezer/javascript':
-        specifier: 1.5.6
-        version: 1.5.6
-      '@playwright/test':
-        specifier: 1.65.1
-        version: 1.65.1
       '@stylistic/eslint-plugin':
         specifier: 6.0.1
         version: 6.0.1(eslint@10.15.0)(oxlint@1.94.0)
-      '@tsrs/wasm':
-        specifier: 0.25.0-ts7.1.0-beta
-        version: 0.25.0-ts7.1.0-beta
-      '@types/estree':
-        specifier: 1.0.10
-        version: 1.0.10
       '@types/node':
         specifier: 26.6.6
         version: 26.6.6
-      '@types/react':
-        specifier: 19.3.0
-        version: 19.3.0
-      '@types/react-dom':
-        specifier: 19.3.0
-        version: 19.3.0(@types/react@19.3.0)
-      '@yongsk0066/reploom':
-        specifier: workspace:*
-        version: link:packages/runtime
-      '@yongsk0066/reploom-build':
-        specifier: workspace:*
-        version: link:packages/build
-      '@yongsk0066/reploom-ui':
-        specifier: workspace:*
-        version: link:packages/ui
-      acorn:
-        specifier: 8.19.0
-        version: 8.19.0
-      clsx:
-        specifier: 2.1.1
-        version: 2.1.1
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
-      eslint-scope:
-        specifier: 9.1.2
-        version: 9.1.2
-      magic-string:
-        specifier: 1.4.5
-        version: 1.4.5
-      oxc-transform:
-        specifier: 0.159.0
-        version: 0.159.0
       oxfmt:
         specifier: 0.79.0
         version: 0.79.0
       oxlint:
         specifier: 1.94.0
         version: 1.94.0
-      react:
-        specifier: 19.3.1
-        version: 19.3.1
-      react-dom:
-        specifier: 19.3.1
-        version: 19.3.1(react@19.3.1)
-      react-refresh:
-        specifier: 0.19.0
-        version: 0.19.0
-      toastify-js:
-        specifier: 1.12.0
-        version: 1.12.0
       turbo:
         specifier: 2.11.11
         version: 2.11.11
@@ -284,10 +221,55 @@ importers:
       react-dom:
         specifier: 19.3.1
         version: 19.3.1(react@19.3.1)
-      toastify-js:
-        specifier: 1.12.0
-        version: 1.12.0
     devDependencies:
+      '@types/react':
+        specifier: 19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
+
+  benchmarks:
+    devDependencies:
+      '@codemirror/commands':
+        specifier: 6.11.1
+        version: 6.11.1
+      '@codemirror/language':
+        specifier: 6.13.1
+        version: 6.13.1
+      '@codemirror/state':
+        specifier: 6.7.6
+        version: 6.7.6
+      '@codemirror/view':
+        specifier: 6.43.15
+        version: 6.43.15
+      '@lezer/common':
+        specifier: 1.5.5
+        version: 1.5.5(patch_hash=a0c3f5aeea61a7482730fcba9cf4d9f8cc8d5069901a7e40dce9d1bb1854508f)
+      '@lezer/javascript':
+        specifier: 1.5.6
+        version: 1.5.6
+      '@lezer/json':
+        specifier: 1.0.3
+        version: 1.0.3
+      '@playwright/test':
+        specifier: 1.65.1
+        version: 1.65.1
+      '@reploom/tests':
+        specifier: workspace:*
+        version: link:../tests
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      '@yongsk0066/reploom':
+        specifier: workspace:*
+        version: link:../packages/runtime
+      '@yongsk0066/reploom-ui':
+        specifier: workspace:*
+        version: link:../packages/ui
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
@@ -312,6 +294,13 @@ importers:
       '@jridgewell/trace-mapping':
         specifier: 0.3.31
         version: 0.3.31
+    devDependencies:
+      '@types/react':
+        specifier: 19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 19.3.0
+        version: 19.3.0(@types/react@19.3.0)
 
   packages/ui:
     dependencies:
@@ -357,12 +346,106 @@ importers:
       '@yongsk0066/reploom':
         specifier: workspace:*
         version: link:../runtime
+    devDependencies:
+      '@types/react':
+        specifier: 19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 19.3.0
+        version: 19.3.0(@types/react@19.3.0)
       react:
-        specifier: ^19.3.1
+        specifier: 19.3.1
         version: 19.3.1
       react-dom:
-        specifier: ^19.3.1
+        specifier: 19.3.1
         version: 19.3.1(react@19.3.1)
+
+  tests:
+    devDependencies:
+      '@codemirror/state':
+        specifier: 6.7.6
+        version: 6.7.6
+      '@jridgewell/gen-mapping':
+        specifier: 0.3.13
+        version: 0.3.13
+      '@jridgewell/remapping':
+        specifier: 2.3.5
+        version: 2.3.5
+      '@jridgewell/trace-mapping':
+        specifier: 0.3.31
+        version: 0.3.31
+      '@lezer/common':
+        specifier: 1.5.5
+        version: 1.5.5(patch_hash=a0c3f5aeea61a7482730fcba9cf4d9f8cc8d5069901a7e40dce9d1bb1854508f)
+      '@lezer/css':
+        specifier: 1.3.9
+        version: 1.3.9
+      '@lezer/javascript':
+        specifier: 1.5.6
+        version: 1.5.6
+      '@lezer/json':
+        specifier: 1.0.3
+        version: 1.0.3
+      '@lezer/lr':
+        specifier: 1.4.12
+        version: 1.4.12(patch_hash=b60521fca228478957bddf8b4bfbe1db3d3852a419b0cc4193a3440f9a568b2b)
+      '@playwright/test':
+        specifier: 1.65.1
+        version: 1.65.1
+      '@tsrs/wasm':
+        specifier: 0.25.0-ts7.1.0-beta
+        version: 0.25.0-ts7.1.0-beta
+      '@types/estree':
+        specifier: 1.0.10
+        version: 1.0.10
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
+      '@types/react':
+        specifier: 19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      '@yongsk0066/reploom':
+        specifier: workspace:*
+        version: link:../packages/runtime
+      '@yongsk0066/reploom-build':
+        specifier: workspace:*
+        version: link:../packages/build
+      '@yongsk0066/reploom-ui':
+        specifier: workspace:*
+        version: link:../packages/ui
+      acorn:
+        specifier: 8.19.0
+        version: 8.19.0
+      clsx:
+        specifier: 2.1.1
+        version: 2.1.1
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
+      eslint-scope:
+        specifier: 9.1.2
+        version: 9.1.2
+      magic-string:
+        specifier: 1.4.5
+        version: 1.4.5
+      oxc-transform:
+        specifier: 0.159.0
+        version: 0.159.0
+      react:
+        specifier: 19.3.1
+        version: 19.3.1
+      react-dom:
+        specifier: 19.3.1
+        version: 19.3.1(react@19.3.1)
+      react-refresh:
+        specifier: 0.19.0
+        version: 0.19.0
+      toastify-js:
+        specifier: 1.12.0
+        version: 1.12.0
 
 packages:
 

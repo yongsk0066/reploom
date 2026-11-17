@@ -52,7 +52,7 @@ const inputs = [
     name: "effect-events",
     path: "/App.tsx",
     runtime: "react",
-    source: await readFile("examples/effect-events/App.tsx", "utf8"),
+    source: await readFile("apps/demo/examples/effect-events/App.tsx", "utf8"),
   },
   {
     name: "functions-558k",

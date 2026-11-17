@@ -75,7 +75,7 @@ jobs:
         with:
           name: browser-site
           path: artifacts/browser-site
-      - run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+      - run: pnpm --filter @reploom/tests exec playwright install --with-deps ${{ matrix.browser }}
       - run: pnpm test:browser --project=${{ matrix.browser }}
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

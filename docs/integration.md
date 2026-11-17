@@ -151,7 +151,7 @@ export function increment() {
 }
 ```
 
-Read `count.value` when mounting a DOM view or initializing a React hook. This makes the restoration decision explicit in the example. See the [state contract](support.md#state-and-cleanup) for supported values and limits. [The task-list example](../examples/dom-todos/main.ts) demonstrates this alongside form handling.
+Read `count.value` when mounting a DOM view or initializing a React hook. This makes the restoration decision explicit in the example. See the [state contract](support.md#state-and-cleanup) for supported values and limits. [The task-list example](../apps/demo/examples/dom-todos/main.ts) demonstrates this alongside form handling.
 
 ## Optional checks
 

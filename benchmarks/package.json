@@ -1,0 +1,32 @@
+{
+  "name": "@reploom/benchmarks",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "runtime": "node run.mjs runtime.mjs",
+    "browser": "node run.mjs browser.mjs",
+    "bindings": "node run.mjs bindings.mjs",
+    "parser": "node run.mjs parser.mjs",
+    "compiler-startup": "node run.mjs compiler-startup.mjs",
+    "typecheck": "node run.mjs typecheck.mjs",
+    "typecheck-memory": "node run.mjs typecheck-memory.mjs",
+    "editor": "node run.mjs editor/run.mjs",
+    "syntax": "node run.mjs syntax-channel.mjs",
+    "interaction": "node run.mjs interaction.mjs"
+  },
+  "devDependencies": {
+    "@codemirror/commands": "6.11.1",
+    "@codemirror/language": "6.13.1",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15",
+    "@lezer/common": "1.5.5",
+    "@lezer/javascript": "1.5.6",
+    "@lezer/json": "1.0.3",
+    "@playwright/test": "1.65.1",
+    "@reploom/tests": "workspace:*",
+    "@types/node": "26.6.6",
+    "@yongsk0066/reploom": "workspace:*",
+    "@yongsk0066/reploom-ui": "workspace:*",
+    "esbuild": "0.28.2"
+  }
+}

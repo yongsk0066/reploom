@@ -3,9 +3,9 @@ import { mkdtemp, readFile, writeFile, cp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { packPackages } from "./pack.mjs";
+import { packPackages } from "../../scripts/pack.mjs";
 
-const root = fileURLToPath(new URL("../", import.meta.url));
+const root = fileURLToPath(new URL("../../", import.meta.url));
 const consumer = await mkdtemp(path.join(os.tmpdir(), "reploom-consumer-"));
 try {
   const packages = await packPackages();

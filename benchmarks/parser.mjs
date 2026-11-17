@@ -9,7 +9,7 @@ import {
   computedKeys,
   grammarCases,
   nestedGenerics,
-} from "../tests/fixtures/compiler/parser-cases.mjs";
+} from "@reploom/tests/fixtures/compiler/parser-cases.mjs";
 
 const baselinePath = process.argv[2];
 if (!baselinePath) throw Error("Usage: pnpm bench:parser <baseline.wasm> [--bounded-baseline]");
@@ -23,8 +23,8 @@ const after = await readFile(
 const engine = await readFile(new URL("../crates/compiler/engine.mjs", import.meta.url));
 const cases = [];
 for (const file of [
-  "examples/effect-events/App.tsx",
-  "examples/react-counter/App.tsx",
+  "apps/demo/examples/effect-events/App.tsx",
+  "apps/demo/examples/react-counter/App.tsx",
   "tests/fixtures/regression/projects/react-effect-dependencies/App.jsx",
 ])
   cases.push({

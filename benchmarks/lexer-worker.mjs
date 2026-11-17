@@ -9,7 +9,7 @@ import {
   batchedTransition,
   inlineTransition,
   characterRun,
-} from "./editor/lexer-transition.mjs";
+} from "@reploom/tests/fixtures/editor/lexer-transition.mjs";
 
 const bundles = {};
 const variants = process.env.REPLOOM_LEXER_VARIANTS?.split(",") ?? ["before", "inline", "after"];

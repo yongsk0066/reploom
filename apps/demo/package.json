@@ -12,10 +12,11 @@
     "@yongsk0066/reploom-ui": "workspace:*",
     "clsx": "2.1.1",
     "react": "19.3.1",
-    "react-dom": "19.3.1",
-    "toastify-js": "1.12.0"
+    "react-dom": "19.3.1"
   },
   "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "esbuild": "0.28.2"
   }
 }

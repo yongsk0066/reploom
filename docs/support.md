@@ -8,7 +8,7 @@ Projects can include JavaScript, JSX, TypeScript, TSX, CSS, and JSON. Compilatio
 
 Dependencies must be installed in the host workspace and declared with exact versions so the build package can bundle them ahead of time. React projects use matching React and ReactDOM versions from that installation; the current workspace tests React 19.3.1. Prepared React bundles execute inside the preview, independently of the host page's React instance.
 
-Each project supports at most 32 source files and 1,000,000 UTF-16 code units. Declared binary assets have a separate budget of 32 assets, 8 MiB each, and 16 MiB total. Nested resource Workers are opt-in, with a limit of eight. See [examples/projects.mjs](../examples/projects.mjs) for working configurations.
+Each project supports at most 32 source files and 1,000,000 UTF-16 code units. Declared binary assets have a separate budget of 32 assets, 8 MiB each, and 16 MiB total. Nested resource Workers are opt-in, with a limit of eight. See the [demo project declarations](../apps/demo/examples/projects.mjs) for working configurations.
 
 Preparation and browser compilation share a budget of 32 active recursive type parses, including speculative TypeScript paths. Exceeding it produces a source-located compilation diagnostic, preserves the working preview, and leaves the compiler reusable for the next edit. This measures parser nesting, rather than the total number of types or angle brackets; aliases can reduce deeply nested declarations. Other JavaScript recursion and total memory remain subject to engine limits and compiler-failure recovery.
 

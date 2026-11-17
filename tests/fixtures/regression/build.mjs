@@ -11,7 +11,7 @@ await rm(site, { recursive: true, force: true });
 await cp(path.join(root, "apps/demo/dist"), site, { recursive: true });
 await prepareProjects({
   projects,
-  projectRoot: root,
+  projectRoot: fileURLToPath(new URL("../../", import.meta.url)),
   outDir: path.join(site, "regression/assets"),
   publicBase: "/regression/assets/",
 });

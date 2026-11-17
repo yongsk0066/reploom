@@ -15,7 +15,7 @@ pnpm check
 pnpm test
 pnpm audit:packages
 pnpm test:prepare
-pnpm exec playwright install chromium firefox webkit
+pnpm --filter @reploom/tests exec playwright install chromium firefox webkit
 pnpm test:browser
 pnpm format:rust:check
 pnpm lint:rust
@@ -37,12 +37,23 @@ packages/build/     Node preparation API and CLI
 crates/compiler/    Rust compiler and distributable WASM artifact
 vendor/             Pinned upstream compiler sources and verified patches
 patches/            Pinned JavaScript dependency patches
-examples/           Standalone projects used by the demo
-apps/demo/          Example gallery
-tests/             Unit contracts, browser tests, fixtures, and consumers
-benchmarks/         Repeatable workloads for the current implementation
-scripts/            Build, validation, package, and publication checks
+apps/demo/          Example gallery and its self-contained examples/
+tests/              Private validation workspace
+  unit/             Compiler, runtime, lifecycle, and editor contracts
+  browser/          Three-engine integration tests
+  reference/        Independent compiler and source-map reference implementations
+  fixtures/         Shared inputs, lexer conformance, and verification sites
+  packaging/        Bundle audits and packed-consumer preparation
+  consumer/         Source for the external package consumer
+benchmarks/         Private performance-measurement workspace
+scripts/            Shared build, artifact, package, and publication tooling
 ```
+
+The root owns shared formatting, linting, TypeScript, and build orchestration. Each workspace declares the libraries it imports. Acorn, eslint-scope, MagicString, and the native `oxc-transform` reference compiler belong to `@reploom/tests`; measurement dependencies belong to `@reploom/benchmarks`. The demo owns its example dependencies. Public runtime, UI, and build packages have no dependency on either private verification workspace.
+
+Benchmarks reuse conformance inputs through the test workspace's fixture exports. Tests remain independent of benchmark code. The packed consumer is deliberately installed from `.tgz` files in a temporary directory outside the workspace, so workspace links cannot conceal missing package dependencies.
+
+Root `test:*`, `audit:packages`, and `bench:*` commands delegate to their owning workspace. They remain the entry points for local work and CI; for example, `pnpm test` runs `@reploom/tests` and `pnpm bench:runtime` runs `@reploom/benchmarks`.
 
 Generated output belongs in `artifacts/`. Local notes, profiles, old source snapshots, and audit reports belong in `.local/`. Both are ignored by Git. Keep implementation rationale in the relevant source or architecture document; record machine-specific measurements outside the source tree.
 

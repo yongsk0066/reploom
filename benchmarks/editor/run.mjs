@@ -59,7 +59,8 @@ for (const variant of variants) {
 }
 
 const ordinary =
-  "export const value = 12345;\n" + (await readFile("examples/effect-events/App.tsx", "utf8"));
+  "export const value = 12345;\n" +
+  (await readFile("apps/demo/examples/effect-events/App.tsx", "utf8"));
 
 const lines = (size) => {
   const rows = [];

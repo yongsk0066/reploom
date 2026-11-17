@@ -21,7 +21,7 @@ test("dependency packs share the runtime's React for ESM, named, JSX and CommonJ
   }
 
   const builder = createVendorBuilder({
-    root: fileURLToPath(new URL("../../", import.meta.url)),
+    root: fileURLToPath(new URL("../", import.meta.url)),
     asset: async (name, source) => {
       const asset = { url: `${name}-${sources.size}` };
       sources.set(asset.url, source);

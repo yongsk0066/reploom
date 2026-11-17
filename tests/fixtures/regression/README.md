@@ -1,6 +1,6 @@
 # Runtime lifecycle fixtures
 
-These projects exercise contracts that need multiple interacting modules or independent sessions. The gallery under `examples/` contains the smaller introductory projects.
+These projects exercise contracts that need multiple interacting modules or independent sessions. The gallery under `apps/demo/examples/` contains the smaller introductory projects.
 
 | Fixture                     | Contract                                                                            |
 | --------------------------- | ----------------------------------------------------------------------------------- |

@@ -448,7 +448,7 @@ async function createChecker(t, configuration, options = {}) {
   t.after(() => worker.terminate());
   const receive = async () => (await once(worker, "message"))[0];
   assert.equal((await receive()).loaded, true);
-  const wasm = await readFile(new URL("../../node_modules/@tsrs/wasm/tsrs.wasm", import.meta.url));
+  const wasm = await readFile(new URL(import.meta.resolve("@tsrs/wasm/tsrs.wasm")));
   let id = 0;
 
   const send = async (message) => {

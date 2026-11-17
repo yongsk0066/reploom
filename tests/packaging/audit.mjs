@@ -4,6 +4,10 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
+
+const root = fileURLToPath(new URL("../../", import.meta.url));
+const consumer = fileURLToPath(new URL("../", import.meta.url));
 
 const entries = {
   headless: `export {ProjectSession,defineProject} from '@yongsk0066/reploom'; export {createBrowserPlatform,attachPreview} from '@yongsk0066/reploom/browser';`,
@@ -14,7 +18,8 @@ const entries = {
 const results = {};
 for (const [name, contents] of Object.entries(entries)) {
   const result = await build({
-    stdin: { contents, resolveDir: process.cwd() },
+    absWorkingDir: root,
+    stdin: { contents, resolveDir: consumer },
     bundle: true,
     write: false,
     outdir: "artifacts/audit",
@@ -70,8 +75,12 @@ for (const [name, contents] of Object.entries(entries)) {
     runtimeImportCycles: 0,
   };
 }
-const manifest = JSON.parse(await readFile("apps/demo/dist/reploom/manifest.json", "utf8"));
-const compiler = await readFile("apps/demo/dist" + manifest.compilerWorker.url);
+
+const manifest = JSON.parse(
+  await readFile(path.join(root, "apps/demo/dist/reploom/manifest.json"), "utf8"),
+);
+
+const compiler = await readFile(path.join(root, "apps/demo/dist") + manifest.compilerWorker.url);
 results.compilerWorker = {
   bytes: compiler.byteLength,
   gzipBytes: gzipSync(compiler).byteLength,
@@ -80,10 +89,13 @@ results.compilerWorker = {
 };
 results.source = {
   lockSha256: createHash("sha256")
-    .update(await readFile("pnpm-lock.yaml"))
+    .update(await readFile(path.join(root, "pnpm-lock.yaml")))
     .digest("hex"),
   node: process.version,
 };
-await mkdir("artifacts/audit", { recursive: true });
-await writeFile("artifacts/audit/packages.json", JSON.stringify(results, null, 2) + "\n");
+await mkdir(path.join(root, "artifacts/audit"), { recursive: true });
+await writeFile(
+  path.join(root, "artifacts/audit/packages.json"),
+  JSON.stringify(results, null, 2) + "\n",
+);
 console.log(JSON.stringify(results, null, 2));
