@@ -32,5 +32,15 @@ test("prepared readers keep exact UTF-16 source and escape markup when rendered 
 test("large or dense initial files use the viewport reader", async () => {
   assert.equal(await prepareSource("/a.js", ""), undefined);
   assert.equal(await prepareSource("/a.js", " ".repeat(8193)), undefined);
-  assert.equal(await prepareSource("/a.js", "a+b;".repeat(500)), undefined);
+  assert.equal(await prepareSource("/a.js", "a+1;".repeat(500)), undefined);
+});
+
+test("unstyled tokens remain selectable plain text between colored ranges", async () => {
+  const source = await prepareSource("/math.js", "const total = count + 1;");
+  const markup = renderToStaticMarkup(createElement(PreparedSourceView, { source }));
+  assert.match(markup, /class="tok-keyword">const</);
+  assert.match(markup, /class="tok-definition">total</);
+  assert.match(markup, />1<\/span>;<\/pre>/);
+  assert.match(markup, /<\/span> count <span/);
+  assert.doesNotMatch(markup, /tok-punctuation|tok-variableName/);
 });

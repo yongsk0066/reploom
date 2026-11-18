@@ -1,5 +1,4 @@
-import { classHighlighter, highlightTree } from "@lezer/highlight";
-import { language } from "./syntax.ts";
+import { language, highlightSource } from "./syntax.ts";
 
 export type PreparedSource = Readonly<{
   path: string;
@@ -18,7 +17,7 @@ export async function prepareSource(
   const classes: string[] = [];
   const spans: number[] = [];
   let cursor = 0;
-  highlightTree(parser.parse(text), classHighlighter, (from, to, style) => {
+  highlightSource(parser.parse(text), 0, text.length, (from, to, style) => {
     let id = classes.indexOf(style);
     if (id < 0) id = classes.push(style) - 1;
     spans.push(from - cursor, to - from, id);
