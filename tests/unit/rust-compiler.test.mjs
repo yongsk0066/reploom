@@ -279,3 +279,36 @@ test("JSON modules preserve data semantics for __proto__, negative zero, duplica
     compiler.dispose();
   }
 });
+
+test("generated module prelude lines preserve source positions for arbitrary string export names", () => {
+  const compiler = createProjectCompiler(createEngine(module), config);
+  const name = "line\u2028paragraph\u2029name";
+
+  const quoted = JSON.stringify(name)
+    .replaceAll("\u2028", "\\u2028")
+    .replaceAll("\u2029", "\\u2029");
+
+  const source = `import { ${quoted} as input } from "./b.ts";\nexport { input as ${quoted} };\nexport const marker = input + 7;`;
+  try {
+    const result = compiler.compile({
+      "/a.ts": source,
+      "/b.ts": `const value = 2; export { value as ${quoted} };`,
+    });
+
+    const code = result.modules["/a.ts"].code;
+    const lines = code.slice(0, code.lastIndexOf(".read()")).split(/\r\n|[\n\r\u2028\u2029]/);
+
+    const map = new TraceMap(
+      JSON.parse(Buffer.from(result.debug["/a.ts"].sourceMap.split(",")[1], "base64")),
+    );
+
+    const pos = originalPositionFor(map, { line: lines.length + 2, column: lines.at(-1).length });
+    assert.deepEqual(
+      [pos.source, pos.line, pos.column],
+      ["/a.ts", 3, source.split("\n")[2].indexOf("input")],
+    );
+    assert.ok(code.includes(quoted));
+  } finally {
+    compiler.dispose();
+  }
+});

@@ -13,6 +13,7 @@ pub(crate) use plan::{ModulePlan, Names};
 
 pub(super) struct ModuleLink {
     pub prefix: String,
+    pub prefix_lines: u32,
     pub metadata: Metadata,
 }
 
@@ -35,8 +36,7 @@ pub(super) fn link_module<'a>(
     if let Some(error) = linker.error {
         return Err(error.into());
     }
-    let (prefix, metadata) = linker.plan.finish();
-    Ok(ModuleLink { prefix, metadata })
+    Ok(linker.plan.finish())
 }
 
 struct Linker<'a, 's> {

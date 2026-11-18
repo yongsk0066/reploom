@@ -1,7 +1,7 @@
 {
   "hostABI": 3,
-  "sha256": "a4e1dd7110813265a73f5548dff1e0b642cf156716731af1e220adeb376817dd",
-  "bytes": 2368579,
+  "sha256": "61196b705707171ba16a429d6672d40b90bdf17e865f83fb1aed9bdf6ffd28a1",
+  "bytes": 2369227,
   "sources": {
     "../../scripts/build-playground-compiler.mjs": "a6554000e8b3cac38db9426d8fa1039c9d6119f538aff55444f2b372c27659a6",
     "../../scripts/compiler-inputs.mjs": "447e203e35468cb0bb249d11b20d950225d4d32226adf93b42954a89ea1b9f9f",
@@ -101,9 +101,9 @@
     "../../vendor/patches/oxc-sourcemap-generated-offset.patch": "4d082b1bd7be0a172344840095a3d0ba2d8fcd4367e483a53931470087cae9e8",
     "Cargo.lock": "8bea4b7d84e6a15d9c30cd85b9c93679bd93410cac57a7e7bc58299ef163ab74",
     "Cargo.toml": "d72400f132bbb5b393ac023b27dd4caa49b3dfc1da8b750f53306207eb571002",
-    "src/lib.rs": "7b01bb5079e4be163376cd7c397e9d904c0143070cf30b2b03e8cc923c4b9ff6",
-    "src/linker.rs": "4d7be5717b6ad9ae8812a2dc2c80879854eae405bab5cd579282adccc92768f0",
-    "src/linker/plan.rs": "a2b6f5ba25229d8d001b5b7c688867db3b2c7dcd9e4c3853a493ab08f3bb9b05",
+    "src/lib.rs": "c064a547894f241ee661be3b23984ff76fa8c1be800812a5374c59c3c7a8c564",
+    "src/linker.rs": "49b56aedd778ae30db48e64852e54180ac76060213086f75d21c71c0eff8e36a",
+    "src/linker/plan.rs": "030385b2445206d530dab014db5b555b7c83c1896d752f7e8b6130459a03f9ea",
     "src/main.rs": "994290a8285a2fa2da19f7a782acac3e7432ea251d3b4755f84aa6c04623173f",
     "src/output.rs": "50e5b6f41a28251a516822491bfe0a84f7e158e3bbb4bc86408a257a0a5cf807",
     "src/parser.rs": "2610b95669fd0cb727cbfbe5149e5b71a19a3680cfc5830a4e59ef7d4813d0b6"

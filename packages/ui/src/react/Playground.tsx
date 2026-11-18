@@ -9,6 +9,9 @@ import type { EditorOptions } from "../codemirror/editor.ts";
 import { ProjectTools } from "./ProjectTools.tsx";
 import { defaultLabels, type PlaygroundLabels } from "./labels.ts";
 
+import type { PreparedSource } from "../reader/prepare.ts";
+import { PreparedSourceView } from "./PreparedSourceView.tsx";
+
 type UIProps = {
   session: ProjectSession;
   id: string;
@@ -91,6 +94,7 @@ const Console = memo(function Console({ session, labels }: Pick<UIProps, "sessio
 });
 
 export type PlaygroundProps = {
+  preparedSource?: PreparedSource;
   editorOptions?: EditorOptions;
   project: string;
   platform: BrowserPlatform;
@@ -134,6 +138,9 @@ export default function Playground(props: PlaygroundProps) {
       data-project={project}
       data-phase="loading"
     >
+      {props.preparedSource && props.defaultView !== "preview" && !props.initialArchive && (
+        <PreparedSourceView source={props.preparedSource} />
+      )}
       {labels.loading}
     </section>
   );
@@ -167,6 +174,8 @@ function ProjectUI({
   showTools = true,
   defaultView = "split",
   shareTarget,
+  preparedSource,
+  initialArchive,
 }: PlaygroundProps & { session: ProjectSession; labels: PlaygroundLabels }) {
   const id = useId();
   const host = useRef<HTMLElement>(null);
@@ -229,6 +238,7 @@ function ProjectUI({
           id={id}
           activation={editorActivation}
           compilerActivation={compilerActivation}
+          preparedSource={initialArchive ? undefined : preparedSource}
           editorOptions={editorOptions}
           labels={labels}
         />

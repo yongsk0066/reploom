@@ -37,6 +37,7 @@ export type Manifest = {
 
 export type AssetRepositoryOptions = {
   manifestUrl: string | URL;
+  manifest?: Manifest;
   assetBaseUrl?: string | URL;
   fetch?: typeof globalThis.fetch;
   downloadTimeoutMs?: number;
@@ -62,9 +63,13 @@ function immutableJSON(bytes: ArrayBuffer) {
 }
 
 /** A repository owns its requests and bounded immutable asset cache. */
-export function createAssetRepository(options: AssetRepositoryOptions) {
+export function createAssetRepository({
+  manifest: initialManifest,
+  ...options
+}: AssetRepositoryOptions) {
   let manifest: ReturnType<typeof createSharedTask<Manifest>> | undefined;
   let disposed = false;
+  let baked = initialManifest ? structuredClone(initialManifest) : undefined;
   let cachedBytes = 0;
   let cachedEntries = 0;
   const maxCacheBytes = 8 * 1024 * 1024;
@@ -115,20 +120,24 @@ export function createAssetRepository(options: AssetRepositoryOptions) {
     }
   }
 
+  async function fetchManifest(signal: AbortSignal) {
+    const response = await request(manifestURL(), {
+      cache: "no-store",
+      credentials: "omit",
+      signal,
+    });
+
+    if (!response.ok) throw new Error("Could not load the project manifest");
+    return (await response.json()) as Manifest;
+  }
+
   function loadManifest(signal?: AbortSignal) {
     assertOpen();
     signal?.throwIfAborted();
     if (!manifest) {
       const task = createSharedTask(
         async (signal) => {
-          const response = await request(manifestURL(), {
-            cache: "no-store",
-            credentials: "omit",
-            signal,
-          });
-
-          if (!response.ok) throw new Error("Could not load the project manifest");
-          const value = await response.json();
+          const value = baked ?? (await fetchManifest(signal));
           signal.throwIfAborted();
           assertOpen();
           if (
@@ -232,6 +241,7 @@ export function createAssetRepository(options: AssetRepositoryOptions) {
     dispose() {
       if (disposed) return;
       disposed = true;
+      baked = undefined;
       lifetime.abort();
       assets.clear();
       cachedBytes = 0;

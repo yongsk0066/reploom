@@ -50,6 +50,7 @@ const editor = await build({
   entryPoints: {
     editor: "packages/ui/src/editor.ts",
     react: "packages/ui/src/react.ts",
+    "prepare-reader": "packages/ui/src/reader/prepare.ts",
   },
   outdir: "packages/ui/dist",
   chunkNames: "chunks/[name]-[hash]",
@@ -112,9 +113,11 @@ await writeFile(
     .map(([, text]) => text)
     .join("\n\n"),
 );
-await cp(
-  new URL("../packages/ui/src/styles.css", import.meta.url),
-  new URL("../packages/ui/dist/styles.css", import.meta.url),
+const palette = await readFile(path.join(root, "packages/ui/src/reader/palette.css"), "utf8");
+await writeFile(path.join(root, "packages/ui/dist/reader.css"), palette);
+await writeFile(
+  path.join(root, "packages/ui/dist/styles.css"),
+  (await readFile(path.join(root, "packages/ui/src/styles.css"), "utf8")) + palette,
 );
 
 await cp(

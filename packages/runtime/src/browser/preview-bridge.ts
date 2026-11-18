@@ -11,7 +11,7 @@ import {
   type InspectionResult,
 } from "../shared/protocol.ts";
 import type { ManagedState } from "../project/snapshot.ts";
-import type { ArtifactConnection } from "./compiler-client.ts";
+import type { ArtifactConnection } from "./preview-destinations.ts";
 
 export type ArtifactConnector = (
   projectId: string,

@@ -30,6 +30,14 @@
     "./styles.css": {
       "types": "./dist/styles.d.ts",
       "default": "./dist/styles.css"
+    },
+    "./prepare-reader": {
+      "types": "./dist/reader/prepare.d.ts",
+      "import": "./dist/prepare-reader.js"
+    },
+    "./reader.css": {
+      "types": "./dist/styles.d.ts",
+      "default": "./dist/reader.css"
     }
   },
   "publishConfig": {

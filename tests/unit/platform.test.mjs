@@ -219,6 +219,31 @@ test("registering a preview does not download or create the compiler before edit
   platform.dispose();
 });
 
+test("a released preview destination cannot close the next session before the first edit", async () => {
+  const platform = createBrowserPlatform({ manifestUrl: "https://test.invalid/manifest.json" });
+
+  const connect = (generation) =>
+    platform.connectCompilerPreview(
+      "example",
+      generation,
+      () => {
+        throw Error("No editing intent");
+      },
+      new AbortController().signal,
+    );
+
+  try {
+    const old = await connect("first");
+    platform.services.compiler.release("example");
+    const current = await connect("second");
+    old.close();
+    await assert.rejects(connect("duplicate"), /one active preview/);
+    current.close();
+  } finally {
+    platform.dispose();
+  }
+});
+
 test("a queued preview connection cannot register after its platform is disposed", async () => {
   const platform = createBrowserPlatform({
     manifestUrl: "https://test.invalid/assets/manifest.json",
@@ -484,4 +509,34 @@ test("prepared scripts retain immutable bytes and preserve them across structure
   repository.dispose();
   assert.equal(await copy.text(), body);
   assert.equal(calls, 1);
+});
+
+test("a prepared manifest is pinned at acquisition and retains protocol, integrity and disposal checks", async () => {
+  const requests = [];
+  const input = { schema: 2, protocol: PROTOCOL, moduleABI: MODULE_ABI, projects: { example: {} } };
+
+  const options = {
+    manifest: input,
+    manifestUrl: "https://test.invalid/pinned/manifest.json",
+    fetch: async (url) => {
+      requests.push(String(url));
+      return new Response("hello");
+    },
+  };
+
+  const repository = createAssetRepository(options);
+  input.protocol = -1;
+  input.projects.example.changed = true;
+  const snapshot = await repository.loadManifest();
+  assert.equal(snapshot.protocol, PROTOCOL);
+  assert.deepEqual(snapshot.projects.example, {});
+  assert.deepEqual(requests, []);
+  assert.equal(await repository.loadAsset(asset), "hello");
+  await assert.rejects(repository.loadAsset({ ...asset, sha256: "bad" }), /integrity/);
+  assert.deepEqual(requests, Array(2).fill("https://test.invalid/pinned/entry.js"));
+  repository.dispose();
+  assert.throws(() => repository.loadManifest(), { name: "AbortError" });
+  const incompatible = createAssetRepository(options);
+  await assert.rejects(incompatible.loadManifest(), /Incompatible project manifest/);
+  incompatible.dispose();
 });

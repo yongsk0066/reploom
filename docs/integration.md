@@ -71,6 +71,8 @@ async function dispose() {
 }
 ```
 
+Static hosts can pass the prepared manifest alongside its URL in `createBrowserPlatform({ manifestUrl, manifest })`. Pin both to the deployed asset set. The platform snapshots the manifest, checks its schema and protocol, and verifies downloaded assets by digest.
+
 A platform manages the shared compiler Worker and verified asset cache across multiple sessions. Separate platforms keep their caches and Workers isolated even when project IDs match. Each session supports one active preview; during teardown, dispose previews and sessions before their shared platform. The `/internal/*` exports serve the build package and are not a supported integration API.
 
 Prepared sources and programs are shared immutable values. Session editing and file-transaction APIs create revisions while leaving those prepared values available to other sessions.
@@ -104,6 +106,10 @@ export function mountExample(host: HTMLElement) {
 ```
 
 `Playground` manages its session and preview lifecycle, while the caller owns the platform. Create the platform inside an explicit mount function or a mounting effect. The wrapper supports React Strict Mode's development setup, cleanup, and setup cycle.
+
+For server-rendered documentation, call `prepareSource(path, text)` from `@yongsk0066/reploom-ui/prepare-reader` during the build. Pass the result as `preparedSource` with `editorActivation="interaction"`. The React view reuses the colors while the file and its contents match. A lightweight host shell can render `PreparedSourceView` with the same data and import `@yongsk0066/reploom-ui/reader.css`. The spans use UTF-16 offsets in a typed array. When passing them through plain JSON, serialize the spans with `Array.from`. Files above 8,192 UTF-16 units or 768 styled spans use the viewport reader.
+
+Set `--reploom-code-size` on the host to size the editor and reader. A positive `--reploom-preview-scale` scales the embedded document and adjusts its viewport to fill the panel. Its default is 1.
 
 By default, `Playground` mounts the full editor eagerly. With `editorActivation="interaction"`, visible source previews load the grammar for the selected file and color the code. Readers can select and copy the source. The Edit code button loads CodeMirror. If the editor fails to load, an editable textarea provides a fallback.
 

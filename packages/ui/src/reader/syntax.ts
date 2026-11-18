@@ -1,7 +1,7 @@
 import { classHighlighter, highlightTree } from "@lezer/highlight";
 import type { Tree } from "@lezer/common";
 
-async function language(path: string) {
+export async function language(path: string) {
   if (path.endsWith(".css")) return (await import("@lezer/css")).parser;
   if (path.endsWith(".json")) return (await import("@lezer/json")).parser;
   const { parser } = await import("@lezer/javascript");

@@ -39,7 +39,9 @@ for (const [id, path, before, after] of cases)
 
     await expect(article).toHaveAttribute("data-phase", "ready");
     await expect(page.locator(".reploom")).toHaveCount(1);
-    expect(requests.filter((url) => /\.wasm(?:\?|$)|compiler-worker/.test(url))).toEqual([]);
+    expect(requests.filter((url) => /\.wasm(?:\?|$)|compiler-(?:worker|client)/.test(url))).toEqual(
+      [],
+    );
     if (id === "react-counter") {
       await preview.getByRole("button").click();
       await preview.getByRole("textbox").fill("Grace");

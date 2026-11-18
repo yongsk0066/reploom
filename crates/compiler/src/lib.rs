@@ -116,7 +116,8 @@ fn compile_inner(
         .build(&program);
     safe_point(5, cooperative)?;
     let mut prefix = linked.prefix;
-    let offset = prefix.bytes().filter(|b| *b == b'\n').count() as u32 + 2;
+    // The Function constructor inserts two additional lines before the module.
+    let offset = linked.prefix_lines + 2;
     let map_json = generated
         .map
         .unwrap()

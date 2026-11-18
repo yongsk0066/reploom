@@ -7,6 +7,9 @@ import CodeEditor from "./CodeEditor.tsx";
 import PreviewFrame from "./PreviewFrame.tsx";
 import { shallow, useProject } from "./use-project.ts";
 
+import type { PreparedSource } from "../reader/prepare.ts";
+import { PreparedSourceView } from "./PreparedSourceView.tsx";
+
 type PanelProps = {
   session: ProjectSession;
   id: string;
@@ -113,10 +116,12 @@ export const EditorPane = memo(function EditorPane({
   activation,
   compilerActivation,
   editorOptions,
+  preparedSource,
 }: PanelProps & {
   activation: "eager" | "interaction";
   compilerActivation: "edit" | "interaction";
   editorOptions?: EditorOptions;
+  preparedSource?: PreparedSource;
 }) {
   const view = useProject(session, editorOf, shallow);
   const paths = Object.keys(view.files);
@@ -138,8 +143,10 @@ export const EditorPane = memo(function EditorPane({
         <span className="reploom-sr-only" id={`${id}-source-label`}>
           {labels.source(view.active)}
         </span>
+        {!view.initialized && preparedSource && <PreparedSourceView source={preparedSource} />}
         {view.initialized && (
           <CodeEditor
+            preparedSource={preparedSource}
             options={editorOptions}
             files={view.files}
             active={view.active}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import css from "../styles.css";
+import palette from "../reader/palette.css";
 
 const sheets = new WeakMap<Document, CSSStyleSheet>();
 
@@ -10,7 +11,7 @@ function attachSurface(host: HTMLElement) {
   let sheet = sheets.get(document);
   if (!sheet) {
     sheet = new document.defaultView!.CSSStyleSheet();
-    sheet.replaceSync(css);
+    sheet.replaceSync(css + palette);
     sheets.set(document, sheet);
   }
   if (!root.adoptedStyleSheets.includes(sheet))

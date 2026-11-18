@@ -1,3 +1,4 @@
+import { PreviewDestinations } from "./preview-destinations.ts";
 import { createSharedTask } from "../shared/async-task.ts";
 import type { CompilerConfig, ResourcePolicy } from "../project/definition.ts";
 import { ownCompilerConfig } from "../project/definition.ts";
@@ -15,9 +16,10 @@ export type BrowserPlatformOptions = AssetRepositoryOptions & {
 
 export type BrowserPlatform = ReturnType<typeof createBrowserPlatform>;
 
-export function createBrowserPlatform(options: BrowserPlatformOptions) {
-  const repository = createAssetRepository(options);
+export function createBrowserPlatform({ manifest, ...options }: BrowserPlatformOptions) {
+  const repository = createAssetRepository({ ...options, manifest });
   const { loadAsset, loadJSONAsset, loadScriptAsset, loadBinaryAsset, loadManifest } = repository;
+  const previewRoutes = new PreviewDestinations();
   let client: CompilerClient | undefined;
   let opening: Promise<CompilerClient> | undefined;
   let disposed = false;
@@ -49,7 +51,11 @@ export function createBrowserPlatform(options: BrowserPlatformOptions) {
     return (opening ??= import("./compiler-client.ts")
       .then((module) => {
         assertOpen();
-        return (client = module.createCompilerClient(createWorker, options.compilerLifetime));
+        return (client = module.createCompilerClient(
+          createWorker,
+          options.compilerLifetime,
+          previewRoutes,
+        ));
       })
       .catch((error) => {
         opening = undefined;
@@ -94,9 +100,9 @@ export function createBrowserPlatform(options: BrowserPlatformOptions) {
     open: () => MessagePort,
     signal: AbortSignal,
   ) {
-    const current = await getClient();
+    await Promise.resolve();
     assertOpen();
-    if (!signal.aborted) return current.connectPreview(projectId, generation, open);
+    if (!signal.aborted) return previewRoutes.connect(projectId, generation, open);
   }
 
   async function loadProgram(asset: import("../shared/protocol.ts").Asset, signal?: AbortSignal) {
@@ -205,7 +211,8 @@ export function createBrowserPlatform(options: BrowserPlatformOptions) {
         return client.compile(input, signal);
       },
       release(projectId) {
-        client?.release(projectId);
+        if (client) client.release(projectId);
+        else previewRoutes.entries.delete(projectId);
       },
     },
     newId: () => crypto.randomUUID(),
@@ -225,6 +232,7 @@ export function createBrowserPlatform(options: BrowserPlatformOptions) {
       lifetime.abort();
       validation?.dispose();
       validation = undefined;
+      previewRoutes.dispose();
       client?.dispose();
       client = undefined;
       opening = undefined;

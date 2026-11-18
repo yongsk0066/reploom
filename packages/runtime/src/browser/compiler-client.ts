@@ -10,19 +10,18 @@ import {
   type VersionedProgram,
   type CompilePriority,
 } from "../shared/protocol.ts";
+import { PreviewDestinations } from "./preview-destinations.ts";
 import { sourceChange } from "../shared/source-patch.ts";
 
 export type { Diagnostic, Compilation } from "../shared/protocol.ts";
 
-export type ArtifactConnection = {
-  ensure(): void;
-  acknowledge?(revision: number): void;
-  close(): void;
-};
-
 export type CompilerLifetime = { maxMemoryBytes?: number; minLifetimeMs?: number; idleMs?: number };
 
-export function createCompilerClient(createWorker: () => Worker, limits: CompilerLifetime = {}) {
+export function createCompilerClient(
+  createWorker: () => Worker,
+  limits: CompilerLifetime = {},
+  routes = new PreviewDestinations(),
+) {
   const maxMemoryBytes = limits.maxMemoryBytes ?? 64 * 1024 * 1024;
   const minLifetimeMs = limits.minLifetimeMs ?? 30_000;
   if (
@@ -82,7 +81,7 @@ export function createCompilerClient(createWorker: () => Worker, limits: Compile
     }
   >();
 
-  const destinations = new Map<string, { generation: string; open(): MessagePort }>();
+  const destinations = routes.entries;
 
   const post = (command: CompilerWorkerCommand, transfer: Transferable[] = []) => {
     try {
@@ -314,55 +313,23 @@ export function createCompilerClient(createWorker: () => Worker, limits: Compile
     }
   }
 
-  function connectPreview(
-    projectId: string,
-    generation: string,
-    open: () => MessagePort,
-  ): ArtifactConnection {
-    if (disposed) throw new DOMException("Compiler client disposed", "AbortError");
-    if (destinations.has(projectId))
-      throw new Error(
-        "A ProjectSession owns one active preview; use another session for independent views",
-      );
-    const destination = { generation, open };
-    destinations.set(projectId, destination);
-    try {
+  routes.delivery = {
+    opened(projectId, destination) {
       if (worker) connectDestination(projectId, destination);
-    } catch (error) {
-      destinations.delete(projectId);
-      throw error;
-    }
-    let closed = false;
-    return {
-      acknowledge(revision) {
-        if (
-          destinations.get(projectId) === destination &&
-          (deliveries.get(projectId) ?? Infinity) <= revision
-        )
-          deliveries.delete(projectId);
-      },
-      ensure() {
-        if (closed) return;
-        owners.add(projectId);
-        ensureWorker();
-        scheduleRetirement();
-      },
-      close() {
-        if (closed) return;
-        closed = true;
-        if (destinations.get(projectId) === destination) {
-          destinations.delete(projectId);
-          deliveries.delete(projectId);
-          post({
-            protocol: PROTOCOL,
-            type: "disconnect-preview",
-            projectId,
-            generation,
-          });
-        }
-      },
-    };
-  }
+    },
+    acknowledge(projectId, revision) {
+      if ((deliveries.get(projectId) ?? Infinity) <= revision) deliveries.delete(projectId);
+    },
+    ensure(projectId) {
+      owners.add(projectId);
+      ensureWorker();
+      scheduleRetirement();
+    },
+    closed(projectId, generation) {
+      deliveries.delete(projectId);
+      post({ protocol: PROTOCOL, type: "disconnect-preview", projectId, generation });
+    },
+  };
 
   function setPriority(projectId: string, priority: CompilePriority) {
     if (owners.has(projectId)) post({ protocol: PROTOCOL, type: "priority", projectId, priority });
@@ -489,13 +456,13 @@ export function createCompilerClient(createWorker: () => Worker, limits: Compile
     compile,
     prepare,
     release,
-    connectPreview,
+    connectPreview: routes.connect.bind(routes),
     setPriority,
     dispose() {
       if (disposed) return;
       disposed = true;
       failAll(new DOMException("Compiler client disposed", "AbortError"));
-      destinations.clear();
+      routes.dispose();
     },
   };
 }

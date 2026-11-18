@@ -5,7 +5,11 @@ import type { SourceFiles } from "@yongsk0066/reploom";
 import { mountSourceView } from "../reader/source-view.ts";
 import type { PlaygroundLabels } from "./labels.ts";
 
+import { PreparedSourceView } from "./PreparedSourceView.tsx";
+import type { PreparedSource } from "../reader/prepare.ts";
+
 type Props = {
+  preparedSource?: PreparedSource;
   options?: EditorOptions;
   selection?: { id: string; file: string; line: number; column: number };
   files: SourceFiles;
@@ -24,13 +28,19 @@ function SourcePreview({
   path,
   source,
   labelId,
+  prepared,
 }: {
+  prepared?: PreparedSource;
   path: string;
   source: string;
   labelId: string;
 }) {
   const pre = useRef<HTMLPreElement>(null);
-  useLayoutEffect(() => mountSourceView(pre.current!, path, source), [path, source]);
+  const exact = prepared?.path === path && prepared.text === source ? prepared : undefined;
+  useLayoutEffect(() => {
+    if (!exact) return mountSourceView(pre.current!, path, source);
+  }, [exact, path, source]);
+  if (exact) return <PreparedSourceView source={exact} labelId={labelId} />;
   return <pre ref={pre} className="reploom-source-preview" aria-labelledby={labelId} />;
 }
 
@@ -152,6 +162,7 @@ export default function CodeEditor(props: Props) {
             {props.labels.edit}
           </button>
           <SourcePreview
+            prepared={props.preparedSource}
             path={props.active}
             source={props.files[props.active]?.toString() ?? ""}
             labelId={props.labelId}

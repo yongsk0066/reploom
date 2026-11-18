@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::fmt::Write;
+use std::fmt::{Arguments, Write};
 
 use oxc_allocator::Allocator;
 use oxc_semantic::Scoping;
@@ -8,6 +8,40 @@ use oxc_syntax::symbol::SymbolId;
 use crate::output::Metadata;
 
 const PREFIX: &str = "__playground_";
+
+#[derive(Default)]
+struct Prelude {
+    code: String,
+    lines: u32,
+}
+
+impl Prelude {
+    fn end_line(&mut self) {
+        self.code.push('\n');
+        self.lines += 1;
+    }
+
+    fn line(&mut self, args: Arguments<'_>) {
+        self.code.write_fmt(args).unwrap();
+        self.end_line();
+    }
+
+    fn quoted(&mut self, value: &str) {
+        let json = serde_json::to_string(value).unwrap();
+        // A JSON string may contain literal ECMAScript line or paragraph separators.
+        for part in json.split_inclusive(['\u{2028}', '\u{2029}']) {
+            if let Some(head) = part.strip_suffix('\u{2028}') {
+                self.code.push_str(head);
+                self.code.push_str("\\u2028");
+            } else if let Some(head) = part.strip_suffix('\u{2029}') {
+                self.code.push_str(head);
+                self.code.push_str("\\u2029");
+            } else {
+                self.code.push_str(part);
+            }
+        }
+    }
+}
 
 pub(crate) struct Names<'a> {
     allocator: &'a Allocator,
@@ -181,60 +215,53 @@ impl<'a> ModulePlan<'a> {
         }
     }
 
-    pub fn finish(self) -> (String, Metadata) {
+    pub(super) fn finish(self) -> super::ModuleLink {
         let c = self.context;
-        let mut prefix = format!("async function({c}) {{\n\"use strict\";\n");
+        let mut prefix = Prelude::default();
+        prefix.line(format_args!("async function({c}) {{"));
+        prefix.line(format_args!("\"use strict\";"));
         if let Some(checkpoint) = self.checkpoint {
-            writeln!(
-                prefix,
-                "const {checkpoint} = {c}.checkpoint;\n{checkpoint}();"
-            )
-            .unwrap();
+            prefix.line(format_args!("const {checkpoint} = {c}.checkpoint;"));
+            prefix.line(format_args!("{checkpoint}();"));
         }
-        writeln!(
-            prefix,
+        prefix.line(format_args!(
             "const {} = {c}.register, {} = {c}.signature;",
             self.register, self.signature
-        )
-        .unwrap();
+        ));
         for (name, value) in &self.exports {
-            write!(
-                prefix,
-                "{c}.export({}, () => ",
-                serde_json::to_string(name).unwrap()
-            )
-            .unwrap();
-            self.write_value(&mut prefix, *value);
-            prefix.push_str(");\n");
+            write!(prefix.code, "{c}.export(").unwrap();
+            prefix.quoted(name);
+            prefix.code.push_str(", () => ");
+            self.write_value(&mut prefix.code, *value);
+            prefix.line(format_args!(");"));
         }
         for dep in &self.dependencies {
             write!(
-                prefix,
-                "const {} = await {c}.importBindings({}, [",
-                dep.variable,
-                serde_json::to_string(dep.source).unwrap()
+                prefix.code,
+                "const {} = await {c}.importBindings(",
+                dep.variable
             )
             .unwrap();
+            prefix.quoted(dep.source);
+            prefix.code.push_str(", [");
             for (index, slot) in dep.slots.iter().enumerate() {
                 if index > 0 {
-                    prefix.push(',');
+                    prefix.code.push(',');
                 }
-                prefix.push_str(&serde_json::to_string(slot.imported).unwrap());
+                prefix.quoted(slot.imported);
             }
-            writeln!(prefix, "], {}, {});", dep.namespace, dep.side_effect).unwrap();
+            prefix.line(format_args!("], {}, {});", dep.namespace, dep.side_effect));
             for (index, slot) in dep.slots.iter().enumerate() {
-                writeln!(
-                    prefix,
+                prefix.line(format_args!(
                     "const {} = {}.slots[{index}];",
                     slot.variable, dep.variable
-                )
-                .unwrap();
+                ));
             }
         }
         for &binding in &self.stars {
-            write!(prefix, "{c}.exportAll(").unwrap();
-            self.write_value(&mut prefix, ExportValue::Import(binding));
-            prefix.push_str(");\n");
+            write!(prefix.code, "{c}.exportAll(").unwrap();
+            self.write_value(&mut prefix.code, ExportValue::Import(binding));
+            prefix.line(format_args!(");"));
         }
         let metadata = Metadata {
             specifiers: self
@@ -244,6 +271,10 @@ impl<'a> ModulePlan<'a> {
                 .collect(),
             dynamic: self.dynamic,
         };
-        (prefix, metadata)
+        super::ModuleLink {
+            prefix: prefix.code,
+            prefix_lines: prefix.lines,
+            metadata,
+        }
     }
 }
