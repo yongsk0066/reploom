@@ -1,3 +1,4 @@
+import { moduleLanguage, isScriptFile } from "../project/module-language.ts";
 import {
   validateFiles,
   executionLimits,
@@ -54,6 +55,8 @@ function transformModule(
   source: string,
   runtime: CompilerConfig["runtime"],
 ): Artifact {
+  if (moduleLanguage(id) === "text")
+    return { id, kind: "text", data: source, specifiers: [], dynamic: [] };
   if (id.endsWith(".css")) return { id, kind: "css", code: source, specifiers: [], dynamic: [] };
   if (id.endsWith(".json"))
     return {
@@ -68,7 +71,7 @@ function transformModule(
 }
 
 function moduleInput(id: string, source: string) {
-  if (!/\.[jt]sx?$/.test(id)) throw new Error(`Unsupported file type: ${id}`);
+  if (!isScriptFile(id)) throw new Error(`Unsupported file type: ${id}`);
   return source;
 }
 
@@ -252,12 +255,7 @@ export function createProjectCompiler(
           if (step.done) job.dispose();
           else if (step.value) {
             const { id, source } = step.value;
-            if (
-              cooperative &&
-              engine.compileModuleAsync &&
-              !id.endsWith(".css") &&
-              !id.endsWith(".json")
-            ) {
+            if (cooperative && engine.compileModuleAsync && isScriptFile(id)) {
               const input = moduleInput(id, source);
               return engine
                 .compileModuleAsync(id, input, config.runtime, () => !generator || cancelled())

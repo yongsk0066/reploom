@@ -1,3 +1,4 @@
+import { textModuleExtensions } from "@yongsk0066/reploom/internal/project/module-language";
 import { build } from "esbuild";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
@@ -73,8 +74,8 @@ export async function prepareTypecheck({ options, projects, require, asset, pack
   files["/reploom.d.ts"] = `interface ImportMeta {
     state<T>(key: string, initial: T): { value: T };
     hot: { acceptExports(names: readonly string[]): void; data: Record<string, unknown>; accept(callback?: (exports: Record<string, unknown>) => unknown): void; dispose(callback: (data: Record<string, unknown>) => unknown): void; prune(callback: (data: Record<string, unknown>) => unknown): void; invalidate(): void };
-    resources: { asset(path: string): string; worker(path: string, options?: WorkerOptions): Worker };
-  }\ndeclare module '*.css' {}\n`;
+    resources: { blob(path: string): Blob; asset(path: string): string; worker(path: string, options?: WorkerOptions): Worker };
+  }\ndeclare module '*.css' {}\n${textModuleExtensions.map((ext) => `declare module '*.${ext}' { const text: string; export default text; }`).join("\n")}\n`;
 
   const bundle = await build({
     entryPoints: [fileURLToPath(new URL("./typecheck-worker.mjs", import.meta.url))],

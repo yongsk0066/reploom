@@ -4,11 +4,7 @@
     "sha256": "71674605ec4c087fe9eb534e3e4f9e26eb2e4aabcd76a29fd156c6a844d44b3d"
   },
   {
-    "url": "https://raw.githubusercontent.com/oxc-project/oxc/414532b1d0e1485ed8478c919d29c66c3dfc9946/LICENSE",
-    "sha256": "95ced5ecf1133fbf41d409b5555c86c344f83f3b019926057ddbc07cfdcc27b3"
-  },
-  {
-    "url": "https://raw.githubusercontent.com/oxc-project/oxc-index-vec/8e09fe324eb6df02f56e4eacdfac958930300380/LICENSE",
+    "url": "https://raw.githubusercontent.com/oxc-project/oxc/d4c3cbe2245bf1c56b3e43ae8cd656437e63817c/LICENSE",
     "sha256": "95ced5ecf1133fbf41d409b5555c86c344f83f3b019926057ddbc07cfdcc27b3"
   },
   {

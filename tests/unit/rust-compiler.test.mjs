@@ -312,3 +312,30 @@ test("generated module prelude lines preserve source positions for arbitrary str
     compiler.dispose();
   }
 });
+
+test("TypeScript files accept generic arrows and angle assertions alongside TSX and explicit ESM", () => {
+  const engine = createEngine(module);
+
+  const compiler = createProjectCompiler(engine, {
+    ...config,
+    entry: "/entry.mjs",
+    imports: { "react/jsx-dev-runtime": "react/jsx-dev-runtime" },
+  });
+
+  try {
+    const files = {
+      "/entry.mjs":
+        "import { value } from './value.ts'; import identity from './id.mts'; export default identity(value);",
+      "/value.ts": "const f = <T>(x: T) => x; export const value = f(<number>4);",
+      "/id.mts": "export default function identity<T>(input: T){ return input; }",
+      "/component.tsx": "export function View() { return <span />; }",
+    };
+
+    const program = compiler.compile(files);
+    assert.equal(program.modules["/entry.mjs"].imports["./id.mts"], "/id.mts");
+    assert.equal(program.modules["/value.ts"].kind, "js");
+    assert.equal(program.modules["/component.tsx"].kind, "js");
+  } finally {
+    compiler.dispose();
+  }
+});

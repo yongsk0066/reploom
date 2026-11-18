@@ -77,7 +77,7 @@ test(
     vendorGate.resolve();
     programGate.resolve();
     const result = await loading;
-    assert.equal(new TextDecoder().decode(result.assets["/image.png"].bytes), "pixels");
+    assert.equal(await result.assets["/image.png"].text(), "pixels");
     assert.deepEqual(result.files, { "/a.js": "export{}" });
   },
 );
@@ -370,7 +370,7 @@ test("a failed project load cancels its sibling downloads while another project 
   const blocked = declare("blocked", "{}");
   const bad = declare("bad", "unused");
   const sources = declare("sources", JSON.stringify({ "/a.js": "export{}" }));
-  const program = declare("program", JSON.stringify({ schema: 8, abi: 4 }));
+  const program = declare("program", JSON.stringify({ schema: PROGRAM_SCHEMA, abi: MODULE_ABI }));
   const bootstrap = declare("bootstrap", "bootstrap");
 
   const manifest = {
@@ -539,4 +539,31 @@ test("a prepared manifest is pinned at acquisition and retains protocol, integri
   const incompatible = createAssetRepository(options);
   await assert.rejects(incompatible.loadManifest(), /Incompatible project manifest/);
   incompatible.dispose();
+});
+
+test("verified resource Blobs share the immutable script representation and reject a digest mismatch", async (t) => {
+  const bytes = new TextEncoder().encode("original");
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  let calls = 0;
+
+  const repository = createAssetRepository({
+    manifestUrl: "https://example.test/manifest.json",
+    fetch: async () => {
+      calls++;
+      return new Response(bytes);
+    },
+  });
+
+  t.after(() => repository.dispose());
+  const asset = { url: "resource.js", type: "TEXT/JAVASCRIPT", sha256 };
+
+  const [script, blob] = await Promise.all([
+    repository.loadScriptAsset(asset),
+    repository.loadBlobAsset(asset),
+  ]);
+
+  assert.equal(blob, script);
+  assert.equal(await blob.text(), "original");
+  assert.equal(calls, 1);
+  await assert.rejects(repository.loadBlobAsset({ ...asset, sha256: "bad" }), /integrity/);
 });

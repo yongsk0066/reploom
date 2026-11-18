@@ -5,14 +5,14 @@ use oxc_allocator::Allocator;
 use oxc_codegen::{Codegen, CodegenOptions};
 use oxc_diagnostics::{Diagnostics, Severity};
 use oxc_parser::Parser;
-use oxc_semantic::SemanticBuilder;
-use oxc_span::SourceType;
+use oxc_span::{FileExtension, SourceType};
 use oxc_transformer::{ReactRefreshOptions, TransformOptions, Transformer};
 use serde_json::json;
 use std::path::Path;
 mod linker;
 mod output;
 mod parser;
+mod semantic_capacity;
 use linker::{ModulePlan, Names, link_module};
 use output::{Artifact, CompileError, Diagnostic, OwnedResult};
 
@@ -56,10 +56,12 @@ fn compile_inner(
 ) -> Result<Artifact, CompileError> {
     let allocator = Allocator::default();
     let path = Path::new(filename);
-    let source_type = if filename.ends_with(".ts") || filename.ends_with(".tsx") {
-        SourceType::tsx()
-    } else {
-        SourceType::jsx()
+    let source_type = match path.extension().and_then(|extension| extension.to_str()) {
+        Some("ts") => SourceType::ts(),
+        Some("mts") => FileExtension::Mts.into(),
+        Some("tsx") => SourceType::tsx(),
+        Some("mjs") => SourceType::mjs(),
+        _ => SourceType::jsx(),
     };
     let ret = Parser::new(&allocator, source, source_type)
         .with_options(parser::options())
@@ -75,9 +77,7 @@ fn compile_inner(
                 .windows(2)
                 .any(|w| w == ["@refresh", "reset"])
         });
-    let semantic = SemanticBuilder::new_compiler()
-        .with_enum_eval(true)
-        .build(&program);
+    let semantic = semantic_capacity::analyze(filename, &program);
     check_diagnostics(&semantic.diagnostics, filename, source)?;
     safe_point(2, cooperative)?;
     let mut names = Names::new(&allocator, semantic.semantic.scoping());

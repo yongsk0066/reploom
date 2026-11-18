@@ -1,3 +1,4 @@
+import { PROGRAM_SCHEMA, MODULE_ABI } from "../../packages/runtime/src/shared/protocol.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createCompilerClient } from "../../packages/runtime/src/browser/compiler-client.ts";
@@ -28,8 +29,8 @@ test("editor operations avoid flattening stable bases and recover snapshots/port
 
   const reference = {
     delivery: "worker",
-    schema: 8,
-    abi: 4,
+    schema: PROGRAM_SCHEMA,
+    abi: MODULE_ABI,
     compilerVersion: "test",
     projectKey: "same",
     entry: "/a.js",
@@ -206,8 +207,8 @@ test("idle compilation releases WASM ownership, reseeds on wake and never retire
   const asset = { url: "/compiler.js", sha256: "test" };
 
   const output = {
-    schema: 8,
-    abi: 4,
+    schema: PROGRAM_SCHEMA,
+    abi: MODULE_ABI,
     compilerVersion: "test",
     projectKey: "same",
     entry: "/a.js",

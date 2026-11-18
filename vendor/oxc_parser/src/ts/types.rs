@@ -12,7 +12,7 @@ use crate::{
 };
 
 use super::{
-    super::js::FunctionKind,
+    super::js::{FunctionKind, kind_to_precedence},
     statement::CallOrConstructorSignature,
     type_arguments::TypeArgumentFailure,
 };
@@ -929,7 +929,23 @@ impl<'a, C: Config> ParserImpl<'a, C> {
         left_name
     }
 
+    /// Parse `TypeArguments` if the cursor is at their `<`.
+    #[inline] // Most callers are not at `<`. Decide that without a call.
     pub(crate) fn try_parse_type_arguments(
+        &mut self,
+    ) -> Option<ArenaBox<'a, TSTypeParameterInstantiation<'a>>> {
+        // The tokens which `re_lex_ts_l_angle` accepts.
+        if matches!(
+            self.cur_kind(),
+            Kind::LAngle | Kind::ShiftLeft | Kind::LtEq | Kind::ShiftLeftEq
+        ) {
+            self.try_parse_type_arguments_at_l_angle()
+        } else {
+            None
+        }
+    }
+
+    fn try_parse_type_arguments_at_l_angle(
         &mut self,
     ) -> Option<ArenaBox<'a, TSTypeParameterInstantiation<'a>>> {
         if self.re_lex_ts_l_angle() {
@@ -1972,7 +1988,7 @@ impl<'a, C: Config> ParserImpl<'a, C> {
         if !self.ctx.has_in() && self.at(Kind::In) {
             return false;
         }
-        self.cur_kind().is_binary_operator()
+        kind_to_precedence(self.cur_kind()).is_some()
     }
 
     fn is_start_of_expression(&mut self) -> bool {
@@ -1984,7 +2000,7 @@ impl<'a, C: Config> ParserImpl<'a, C> {
             kind if kind.is_update_operator() => true,
             Kind::LAngle | Kind::Await | Kind::Yield | Kind::Private | Kind::At => true,
             _ if self.is_binary_operator() => true,
-            kind => kind.is_ts_identifier(self.ctx.has_yield(), self.ctx.has_await()),
+            kind => kind.is_identifier_reference(self.ctx.has_yield(), self.ctx.has_await()),
         }
     }
 
@@ -2005,7 +2021,7 @@ impl<'a, C: Config> ParserImpl<'a, C> {
             Kind::Import => {
                 matches!(self.lexer.peek_token().kind(), Kind::LParen | Kind::LAngle | Kind::Dot)
             }
-            _ => false,
+            kind => kind.is_identifier_reference(self.ctx.has_yield(), self.ctx.has_await()),
         }
     }
 }

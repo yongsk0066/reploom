@@ -295,7 +295,13 @@ test("runtime source maps navigate the current revision and reject an obsolete l
 test("compute managed state and declared tests work through the nested Worker inspection boundary", async ({
   page,
 }) => {
-  const { preview, external } = await open(page, "compute");
+  const { preview, external, requested } = await open(page, "compute");
+  const output = preview.getByLabel("Compute output");
+  await expect(output).toContainText('"svg": true');
+  await expect(output).toContainText('"sum": 10');
+  await page.evaluate(() => (window as any).session.change("/amount.txt", "25"));
+  await expect(output).toContainText('"sum": 25');
+  expect(requested.filter((path) => path.includes("/resource."))).toHaveLength(1);
   const saved = await page.evaluate(() => (window as any).session.save({ state: true }));
   expect(saved.state["/main.ts"].count).toBe(7);
   const tests = await page.evaluate(() => (window as any).session.check("tests"));

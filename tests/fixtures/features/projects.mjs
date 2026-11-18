@@ -29,8 +29,19 @@ export const projects = [
     runtime: "compute",
     entry: "/main.ts",
     checks: ["/check.ts"],
+    resources: { assets: { "/icon.svg": { url: "/dom-assets/icon.svg", type: "image/svg+xml" } } },
     files: {
-      "/main.ts": `const count=import.meta.state('count',7); export const read=()=>count.value; export function run(){ return { count: count.value, sum: 10 }; }`,
+      "/amount.txt": "10",
+      "/identity.mts": "export const identity = <T,>(input: T) => input;",
+      "/main.ts": `import amount from './amount.txt';
+        import { identity } from './identity.mts';
+        const count=import.meta.state('count',7);
+        export const read=()=>count.value;
+        export async function run(){
+          const image=import.meta.resources.blob('/icon.svg');
+          const text=await new Response(image.stream()).text();
+          return { count: count.value, sum: identity(Number(amount)), svg: text.includes('<svg') };
+        }`,
       "/check.ts": `import {read} from './main.ts'; export function test({assert}){assert(read()===7);}`,
     },
   },

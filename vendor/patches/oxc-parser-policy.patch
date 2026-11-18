@@ -72,7 +72,7 @@
 +    };
 +
      overlong_source() => {
-         OxcDiagnostic::error("Source length exceeds 4 GiB limit")
+         OxcDiagnostic::error(MAX_LEN_ERROR)
      };
 --- a/vendor/oxc_parser/src/ts/type_arguments.rs
 +++ b/vendor/oxc_parser/src/ts/type_arguments.rs
@@ -92,7 +92,7 @@
 +++ b/vendor/oxc_parser/src/ts/types.rs
 @@ -14,11 +14,33 @@
  use super::{
-     super::js::FunctionKind,
+     super::js::{FunctionKind, kind_to_precedence},
      statement::CallOrConstructorSignature,
 -    type_arguments::{TYPE_ARGUMENT_LOOKAHEAD_DEPTH, TypeArgumentFailure},
 +    type_arguments::TypeArgumentFailure,

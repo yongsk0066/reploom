@@ -1,3 +1,4 @@
+import { moduleLanguage } from "@yongsk0066/reploom/internal/project/module-language";
 import { language, highlightSource } from "./syntax.ts";
 
 export type PreparedSource = Readonly<{
@@ -13,6 +14,7 @@ export async function prepareSource(
   text: string,
 ): Promise<PreparedSource | undefined> {
   if (!text || text.length > 8192) return;
+  if (moduleLanguage(path) === "text") return { path, text, classes: [], spans: [] };
   const parser = await language(path);
   const classes: string[] = [];
   const spans: number[] = [];

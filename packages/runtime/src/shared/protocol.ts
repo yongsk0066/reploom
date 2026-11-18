@@ -12,11 +12,11 @@ import type { ManagedState } from "../project/snapshot.ts";
 export type { Files } from "../project/definition.ts";
 
 // Reploom wire contract, independent of bundler-private helpers or a dev server.
-export const PROTOCOL = 9 as const;
+export const PROTOCOL = 10 as const;
 
 export const MODULE_ABI = 4 as const;
 
-export const PROGRAM_SCHEMA = 8 as const;
+export const PROGRAM_SCHEMA = 9 as const;
 
 export type Asset = { url: string; sha256: string };
 
@@ -36,6 +36,7 @@ export type ModuleContent =
   | { kind: "js"; code: string; forceReset?: boolean }
   | { kind: "css"; code: string }
   | { kind: "json"; data: string }
+  | { kind: "text"; data: string }
   | { kind: "asset"; assetId: string };
 
 export type ModuleArtifact = Readonly<
@@ -49,6 +50,10 @@ export type ModuleArtifact = Readonly<
 
 export type ModuleDebug = Readonly<{ sourceMap: string }>;
 
+export function modulePayload(module: ModuleContent) {
+  return "data" in module ? module.data : "code" in module ? module.code : module.assetId;
+}
+
 // Debug metadata can change without executing the module again.
 export function sameExecution(a: ModuleArtifact | undefined, b: ModuleArtifact | undefined) {
   if (a === b) return a !== undefined;
@@ -56,13 +61,8 @@ export function sameExecution(a: ModuleArtifact | undefined, b: ModuleArtifact |
     !!a &&
     !!b &&
     a.kind === b.kind &&
-    (a.kind === "js" && b.kind === "js"
-      ? a.code === b.code && a.forceReset === b.forceReset
-      : a.kind === "css" && b.kind === "css"
-        ? a.code === b.code
-        : a.kind === "json" && b.kind === "json"
-          ? a.data === b.data
-          : a.kind === "asset" && b.kind === "asset" && a.assetId === b.assetId) &&
+    modulePayload(a) === modulePayload(b) &&
+    (a.kind !== "js" || (b.kind === "js" && a.forceReset === b.forceReset)) &&
     sameImports(a.imports, b.imports)
   );
 }

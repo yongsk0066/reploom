@@ -1,6 +1,8 @@
 import { NodeProp, Tree, TreeBuffer, type NodeSet } from "@lezer/common";
 
-export type LanguageKind = "jsx" | "tsx" | "css" | "json";
+import type { moduleLanguage } from "@yongsk0066/reploom/internal/project/module-language";
+
+export type LanguageKind = Exclude<ReturnType<typeof moduleLanguage>, "text" | undefined>;
 
 export type ParseRequest = {
   type?: "parse";

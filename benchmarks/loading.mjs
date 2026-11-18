@@ -49,6 +49,8 @@ globalThis.probe = {
 async function serve(directory) {
   const root = join(directory, "site");
   const prepared = JSON.parse(await readFile(join(root, "reploom/manifest.json"), "utf8"));
+  const firstProject = Object.values(prepared.projects)[0];
+  const sampleProgram = JSON.parse(await readFile(join(root, firstProject.program.url), "utf8"));
   const bodies = new Map();
 
   function asset(name, source) {
@@ -67,8 +69,8 @@ async function serve(directory) {
   const program = asset(
     "program.json",
     JSON.stringify({
-      schema: 8,
-      abi: 4,
+      schema: sampleProgram.schema,
+      abi: sampleProgram.abi,
       compilerVersion: "asset-workload",
       projectKey: "large",
       entry: "/main.ts",

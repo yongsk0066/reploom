@@ -14,7 +14,11 @@ import { createModuleRuntime } from "../../packages/runtime/src/execution/module
 import { createModulePolicy } from "../../packages/runtime/src/execution/adapters/policy.ts";
 import { createEngine } from "../../crates/compiler/engine.mjs";
 import { readFile } from "node:fs/promises";
-import { sameExecution } from "../../packages/runtime/src/shared/protocol.ts";
+import {
+  sameExecution,
+  PROGRAM_SCHEMA,
+  MODULE_ABI,
+} from "../../packages/runtime/src/shared/protocol.ts";
 
 test("module reuse is tied to the source and resolution shape, including overlapping jobs", () => {
   const engine = {
@@ -115,8 +119,8 @@ test("operation composition matches sequential Unicode/multi-cursor edits withou
 
 test("direct artifact channel supports skipped revisions, reconnect, full resync and bounded lifetime", async (t) => {
   const program = {
-    schema: 8,
-    abi: 4,
+    schema: PROGRAM_SCHEMA,
+    abi: MODULE_ABI,
     compilerVersion: "test",
     projectKey: "same",
     runtime: "dom",
@@ -226,6 +230,10 @@ test("resource scope keeps old debug maps valid within a hard budget and release
   assert.match(url, /^blob:/);
   assert.equal(scope.sourceMap(map), map);
   assert.equal((await (await fetch(url)).json()).sources[0], "old.ts");
+  const blob = scope.access.blob("/worker.js");
+  assert.equal(scope.access.blob("/worker.js"), blob);
+  assert.equal(await new Response(blob.stream()).text(), new TextDecoder().decode(bytes));
+  assert.equal(scope.stats().assetURLs, 0);
   const asset = scope.access.asset("/worker.js");
   assert.equal(scope.access.asset("/worker.js"), asset);
   const worker = scope.access.worker("/worker.js");
@@ -242,6 +250,7 @@ test("resource scope keeps old debug maps valid within a hard budget and release
   await assert.rejects(fetch(url));
   await assert.rejects(fetch(asset));
   assert.throws(() => scope.access.asset("/worker.js"), /disposed/);
+  assert.throws(() => scope.access.blob("/worker.js"), /disposed/);
   assert.deepEqual(scope.stats(), {
     mapBytes: 0,
     mapEntries: 0,

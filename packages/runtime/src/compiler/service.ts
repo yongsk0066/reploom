@@ -1,3 +1,4 @@
+import { modulePayload } from "../shared/protocol.ts";
 import {
   createProjectCompiler,
   type CompileJob,
@@ -235,12 +236,7 @@ export function createCompilerService(
       for (const project of projects.values()) {
         for (const source of Object.values(project.files)) sourceCharacters += source.length;
         for (const module of Object.values(project.output?.program.modules || {}))
-          emittedCharacters +=
-            module.kind === "json"
-              ? module.data.length
-              : module.kind === "asset"
-                ? module.assetId.length
-                : module.code.length;
+          emittedCharacters += modulePayload(module).length;
         for (const debug of Object.values(project.output?.program.debug || {}))
           emittedCharacters += debug.sourceMap.length;
       }

@@ -164,7 +164,7 @@ export function createAssetRepository({
 
   function loadVerified(
     asset: Asset,
-    format: "text" | "json" | "binary" | "script",
+    format: "text" | "json" | "binary" | "blob",
     type: string,
     signal?: AbortSignal,
   ): Promise<unknown> {
@@ -197,8 +197,8 @@ export function createAssetRepository({
 
         const value = decoded
           ? decoded.value
-          : format === "script"
-            ? new Blob([bytes], { type: "text/javascript" })
+          : format === "blob"
+            ? new Blob([bytes], { type })
             : format === "binary"
               ? { bytes: new Uint8Array(bytes), type }
               : new TextDecoder().decode(bytes);
@@ -235,7 +235,9 @@ export function createAssetRepository({
     loadJSONAsset: <T>(asset: Asset, signal?: AbortSignal) =>
       loadVerified(asset, "json", "", signal) as Promise<T>,
     loadScriptAsset: (asset: Asset, signal?: AbortSignal) =>
-      loadVerified(asset, "script", "", signal) as Promise<Blob>,
+      loadVerified(asset, "blob", "text/javascript", signal) as Promise<Blob>,
+    loadBlobAsset: (asset: Asset & { type: string }, signal?: AbortSignal) =>
+      loadVerified(asset, "blob", asset.type.toLowerCase(), signal) as Promise<Blob>,
     loadBinaryAsset: (asset: Asset & { type: string }, signal?: AbortSignal) =>
       loadVerified(asset, "binary", asset.type, signal) as Promise<BinaryAsset>,
     dispose() {

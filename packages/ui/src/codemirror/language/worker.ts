@@ -17,6 +17,8 @@ const host = self as unknown as {
 };
 
 const parsers = {
+  js: javascript,
+  ts: javascript.configure({ dialect: "ts" }),
   jsx: javascript.configure({ dialect: "jsx" }),
   tsx: javascript.configure({ dialect: "jsx ts" }),
   css,

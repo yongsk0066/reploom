@@ -1,10 +1,10 @@
 # Compiler dependency sources
 
-The compiler's Oxc dependency family is pinned to upstream commit `414532b1d0e1485ed8478c919d29c66c3dfc9946`. This revision includes the cover-grammar parser, token-handler lexer changes, and [#29518](https://github.com/oxc-project/oxc/pull/29518). Cargo resolves the family from that immutable Git revision, with the parser replaced by the local source below. The upstream crates still identify themselves as 0.159.0; the compiler engine version includes the commit to distinguish this combination from the published release.
+The compiler's Oxc dependency family is pinned to upstream commit `d4c3cbe2245bf1c56b3e43ae8cd656437e63817c`. This revision includes the cover-grammar parser, token-handler lexer changes, and [#29518](https://github.com/oxc-project/oxc/pull/29518). Cargo resolves the family from that immutable Git revision, with the parser replaced by the local source below. The upstream crates still identify themselves as 0.159.0; the compiler engine version includes the commit to distinguish this combination from the published release.
 
 ## Parser
 
-`oxc_parser/` contains the complete parser source from the pinned commit and its MIT license. Its standalone Cargo metadata comes from the published 0.159.0 archive; the corresponding workspace manifest is retained as `Cargo.toml.orig`. [oxc-parser.json](oxc-parser.json) identifies both origins and hashes the unpatched files.
+`oxc_parser/` contains the complete parser source from the pinned commit and its MIT license. Its standalone Cargo metadata comes from the published 0.159.0 archive with the pinned parser’s added `brands` feature; the corresponding workspace manifest is retained as `Cargo.toml.orig`. [oxc-parser.json](oxc-parser.json) identifies both origins and hashes the unpatched files.
 
 Two local patches remain:
 

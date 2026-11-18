@@ -4,7 +4,9 @@ Reploom targets editable frontend examples in articles, documentation, and small
 
 ## Source and dependencies
 
-Projects can include JavaScript, JSX, TypeScript, TSX, CSS, and JSON. Compilation erases TypeScript syntax; an optional, separately prepared checker provides type diagnostics on request. Module resolution operates over a closed graph of local file paths, string-literal local dynamic imports, and declared package imports.
+Projects can include JavaScript, JSX, TypeScript, TSX, CSS, and JSON. Compilation erases TypeScript syntax; an optional, separately prepared checker provides type diagnostics on request. The compiler and editor use TypeScript grammar for `.ts` and `.mts`, TSX grammar for `.tsx`, and ESM JavaScript for `.mjs`. Module resolution operates over a closed graph of local file paths, string-literal local dynamic imports, and declared package imports.
+
+Local `.txt`, `.md`, `.html`, `.svg`, `.csv`, `.glsl`, and `.wgsl` source files export their exact text as a default import. A text edit updates importers through the same module graph as JavaScript. Applications choose how to render templates, parse rows, or compile shaders. A separately declared binary SVG retains its object URL import.
 
 Dependencies must be installed in the host workspace and declared with exact versions so the build package can bundle them ahead of time. React projects use matching React and ReactDOM versions from that installation; the current workspace tests React 19.3.1. Prepared React bundles execute inside the preview, independently of the host page's React instance.
 
@@ -18,7 +20,7 @@ Preparation and browser compilation share a budget of 32 active recursive type p
 - **DOM:** Entry modules export a synchronous `mount(container, { state, signal })`. The state bag survives compatible edits. Attach event listeners with `signal` and return an optional synchronous or async cleanup function for other resources.
 - **Compute:** Entry modules export `run({ state, signal, report })`, which may be async. State persists across normal updates within the same Worker and resets if Stop, a timeout, or a fatal failure terminates it.
 
-Modules can manage update boundaries through Reploom's `import.meta.hot`: `data`, self-`accept(callback?)`, selective `acceptExports(names)`, `dispose`, `prune`, and `invalidate`. Declared assets and nested Workers are available through `import.meta.resources`.
+Modules can manage update boundaries through Reploom's `import.meta.hot`: `data`, self-`accept(callback?)`, selective `acceptExports(names)`, `dispose`, `prune`, and `invalidate`. For a declared asset, `import.meta.resources.asset(path)` returns a realm-owned object URL and `import.meta.resources.blob(path)` returns the verified immutable `Blob`. Use `blob.stream()` for incremental reads, `blob.text()` for text, or `blob.arrayBuffer()` for binary decoders. Window previews and compute Workers share this API. Nested Workers use `import.meta.resources.worker(path, options)`.
 
 React refresh boundaries compare both export versions. Components may share a module with unchanged primitive constants; changing those constants or adding incompatible exports propagates the update to importers. Compound component properties are inspected up to four levels, and accessors force propagation without invoking getters.
 

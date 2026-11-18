@@ -18,7 +18,7 @@ export type BrowserPlatform = ReturnType<typeof createBrowserPlatform>;
 
 export function createBrowserPlatform({ manifest, ...options }: BrowserPlatformOptions) {
   const repository = createAssetRepository({ ...options, manifest });
-  const { loadAsset, loadJSONAsset, loadScriptAsset, loadBinaryAsset, loadManifest } = repository;
+  const { loadAsset, loadJSONAsset, loadScriptAsset, loadBlobAsset, loadManifest } = repository;
   const previewRoutes = new PreviewDestinations();
   let client: CompilerClient | undefined;
   let opening: Promise<CompilerClient> | undefined;
@@ -118,7 +118,7 @@ export function createBrowserPlatform({ manifest, ...options }: BrowserPlatformO
       await Promise.all(
         Object.entries(assets).map(async ([id, resource]) => [
           id,
-          await loadBinaryAsset(resource, signal),
+          await loadBlobAsset(resource, signal),
         ]),
       ),
     );

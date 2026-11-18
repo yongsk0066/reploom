@@ -67,6 +67,13 @@ minimumReleaseAgeExclude:
   - oxfmt@0.79.0
   - oxlint@1.94.0
   - "@stylistic/eslint-plugin@6.0.1"
+  - "@turbo/darwin-64@2.11.13"
+  - "@turbo/darwin-arm64@2.11.13"
+  - "@turbo/linux-64@2.11.13"
+  - "@turbo/linux-arm64@2.11.13"
+  - "@turbo/windows-64@2.11.13"
+  - "@turbo/windows-arm64@2.11.13"
+  - turbo@2.11.13
 patchedDependencies:
   "@lezer/common@1.5.5": patches/@lezer__common@1.5.5.patch
   "@lezer/lr@1.4.12": patches/@lezer__lr@1.4.12.patch

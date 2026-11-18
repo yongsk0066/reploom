@@ -1,3 +1,4 @@
+import { moduleLanguage } from "@yongsk0066/reploom/internal/project/module-language";
 import { classHighlighter, highlightTree } from "@lezer/highlight";
 import type { Tree } from "@lezer/common";
 import palette from "./palette.css";
@@ -31,10 +32,13 @@ export function highlightSource(
 }
 
 export async function language(path: string) {
-  if (path.endsWith(".css")) return (await import("@lezer/css")).parser;
-  if (path.endsWith(".json")) return (await import("@lezer/json")).parser;
+  const kind = moduleLanguage(path);
+  if (kind === "css") return (await import("@lezer/css")).parser;
+  if (kind === "json") return (await import("@lezer/json")).parser;
   const { parser } = await import("@lezer/javascript");
-  return parser.configure({ dialect: /\.tsx?$/.test(path) ? "jsx ts" : "jsx" });
+  return kind === "js"
+    ? parser
+    : parser.configure({ dialect: kind === "ts" ? "ts" : kind === "tsx" ? "jsx ts" : "jsx" });
 }
 
 export async function parseSource(path: string, source: string, signal: AbortSignal) {

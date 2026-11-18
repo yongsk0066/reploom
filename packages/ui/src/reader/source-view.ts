@@ -1,9 +1,14 @@
+import { moduleLanguage } from "@yongsk0066/reploom/internal/project/module-language";
 import type { Tree } from "@lezer/common";
 import type { paintSource } from "./syntax.ts";
 
 const blockSize = 4096;
 
 export function mountSourceView(pre: HTMLElement, path: string, source: string) {
+  if (moduleLanguage(path) === "text") {
+    pre.textContent = source;
+    return () => {};
+  }
   const controller = new AbortController();
   const { signal } = controller;
   const ranges = new Map<Element, { from: number; to: number }>();

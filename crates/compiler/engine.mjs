@@ -1,5 +1,5 @@
 // The only host for the small Rust/WASM ABI. Instance ownership never escapes.
-export const compilerVersion = "oxc-414532b1-reploom-abi3-rust6";
+export const compilerVersion = "oxc-d4c3cbe2-reploom-abi3-rust6";
 
 export const hostABI = 3;
 

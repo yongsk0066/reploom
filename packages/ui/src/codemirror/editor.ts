@@ -1,3 +1,4 @@
+import { moduleLanguage } from "@yongsk0066/reploom/internal/project/module-language";
 import { lockScrollAxis } from "./axis-scroll.ts";
 import { documentChange } from "./document-change.ts";
 import { Compartment, EditorSelection, EditorState, Text, Transaction } from "@codemirror/state";
@@ -16,7 +17,13 @@ import {
   forceParsing,
   LanguageSupport,
 } from "@codemirror/language";
-import { autoCloseTags, jsxLanguage, tsxLanguage } from "@codemirror/lang-javascript";
+import {
+  autoCloseTags,
+  javascriptLanguage,
+  jsxLanguage,
+  tsxLanguage,
+  typescriptLanguage,
+} from "@codemirror/lang-javascript";
 import { cssLanguage } from "@codemirror/lang-css";
 import { json } from "@codemirror/lang-json";
 import { oneDark } from "@codemirror/theme-one-dark";
@@ -104,23 +111,28 @@ export function createEditor(
   let applying = false;
   let destroyed = false;
 
-  const kind = (path: string) =>
-    path.endsWith(".css")
-      ? "css"
-      : path.endsWith(".json")
-        ? "json"
-        : /\.tsx?$/.test(path)
-          ? "tsx"
-          : "jsx";
+  const scripts = {
+    js: javascriptLanguage,
+    jsx: jsxLanguage,
+    ts: typescriptLanguage,
+    tsx: tsxLanguage,
+  };
 
   const language = (path: string) => {
-    const standard = path.endsWith(".css")
-      ? new LanguageSupport(cssLanguage)
-      : path.endsWith(".json")
-        ? json()
-        : new LanguageSupport(/\.tsx?$/.test(path) ? tsxLanguage : jsxLanguage, autoCloseTags);
+    const kind = moduleLanguage(path);
+    if (!kind || kind === "text") return [];
 
-    return analysis?.support(path, kind(path), standard) ?? standard;
+    const standard =
+      kind === "css"
+        ? new LanguageSupport(cssLanguage)
+        : kind === "json"
+          ? json()
+          : new LanguageSupport(
+              scripts[kind],
+              kind === "tsx" || kind === "jsx" ? autoCloseTags : [],
+            );
+
+    return analysis?.support(path, kind, standard) ?? standard;
   };
 
   const extension = (path: string) => [
@@ -141,7 +153,8 @@ export function createEditor(
       }),
     ),
     EditorView.updateListener.of((update) => {
-      analysis?.update(path, kind(path), update);
+      const kind = moduleLanguage(path);
+      if (kind && kind !== "text") analysis?.update(path, kind, update);
       if (!applying && update.docChanged) {
         currentText = update.state.doc;
         const edits: import("@yongsk0066/reploom").TextEdit[] = [];

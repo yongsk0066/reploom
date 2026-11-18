@@ -1,3 +1,4 @@
+import { modulePayload } from "../shared/protocol.ts";
 import type { Artifact } from "./project-compiler.ts";
 
 export type CacheLimits = { bytes: number; entries: number };
@@ -68,11 +69,7 @@ export function createArtifactStore(limits: CacheLimits = sharedCacheLimits) {
             2 *
             (id.length +
               source.length +
-              (artifact.kind === "json"
-                ? artifact.data.length
-                : artifact.kind === "asset"
-                  ? artifact.assetId.length
-                  : artifact.code.length) +
+              modulePayload(artifact).length +
               (artifact.kind === "js" ? artifact.sourceMap?.length || 0 : 0) +
               artifact.specifiers.reduce((n, s) => n + s.length, 0) +
               artifact.dynamic.reduce((n, s) => n + s.length, 0));

@@ -6,6 +6,7 @@ import {
 
 export interface ResourceAccess {
   asset(id: string): string;
+  blob(id: string): Blob;
   worker(id: string, options?: WorkerOptions): Worker;
 }
 
@@ -19,6 +20,7 @@ export function createRealmResources(
 
   const urls = new Set<string>();
   const assets = new Map<string, string>();
+  let adapted: Map<string, Blob> | undefined;
 
   const workers = new Set<Worker>();
   let closed = false;
@@ -58,18 +60,31 @@ export function createRealmResources(
     globalThis.Worker = OwnedWorker;
   }
 
+  function assetBlob(id: string): Blob {
+    alive();
+    const declared = policy?.assets[id];
+    const value = Object.hasOwn(payloads, id) ? payloads[id] : undefined;
+    if (!declared || !value || value.type.toLowerCase() !== declared.type.toLowerCase())
+      throw new Error(`Undeclared project asset: ${id}`);
+    if ("slice" in value) return value;
+    // Custom session loaders may supply typed bytes. Take one immutable snapshot per realm.
+    adapted ??= new Map();
+    let blob = adapted.get(id);
+    if (!blob) {
+      blob = new Blob([value.bytes], { type: value.type });
+      adapted.set(id, blob);
+    }
+    return blob;
+  }
+
   const access: ResourceAccess = {
+    blob: assetBlob,
     asset(id) {
       alive();
       const existing = assets.get(id);
       if (existing) return existing;
 
-      const declared = policy?.assets[id];
-      const value = payloads[id];
-
-      if (!declared || !value || declared.type !== value.type)
-        throw new Error(`Undeclared project asset: ${id}`);
-      const url = ownURL(new Blob([value.bytes], { type: value.type }));
+      const url = ownURL(assetBlob(id));
       assets.set(id, url);
       return url;
     },
@@ -127,6 +142,7 @@ export function createRealmResources(
       for (const url of urls) URL.revokeObjectURL(url);
       urls.clear();
       assets.clear();
+      adapted = undefined;
       payloads = {};
       mapBytes = 0;
       mapEntries = 0;

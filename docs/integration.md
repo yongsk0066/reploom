@@ -41,7 +41,7 @@ You can also run preparation programmatically with `prepareProjects(options)`. R
 
 Publish the entire generated directory, including `manifest.json`, hashed assets, and license notices, at `/reploom/` on the page's origin. Serve `.wasm` files with `application/wasm` and `.mjs` files with a JavaScript MIME type, and exclude the directory from SPA HTML fallbacks.
 
-Regenerate these assets when upgrading Reploom packages. The current contract uses manifest schema 2, protocol 9, program schema 8, and module ABI 4. Deploy the matching runtime and prepared directory together.
+Regenerate these assets when upgrading Reploom packages. The current contract uses manifest schema 2, protocol 10, program schema 9, and module ABI 4. Deploy the matching runtime and prepared directory together.
 
 ## Use a headless session
 

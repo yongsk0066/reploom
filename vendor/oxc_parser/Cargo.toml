@@ -99,6 +99,7 @@ version = "0.159.0"
 features = [
     "assert_unchecked",
     "branch_hints",
+    "brands",
     "buffered_vec",
     "fieldless_enum",
 ]

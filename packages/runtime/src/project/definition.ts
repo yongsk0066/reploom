@@ -1,3 +1,5 @@
+import { isScriptFile } from "./module-language.ts";
+
 export type Files = Readonly<Record<string, string>>;
 
 export type RuntimeKind = "react" | "dom" | "compute";
@@ -45,7 +47,7 @@ export type ResourcePolicy = {
 
 export type BinaryAsset = { bytes: Uint8Array<ArrayBuffer>; type: string };
 
-export type ResourcePayloads = Readonly<Record<string, BinaryAsset>>;
+export type ResourcePayloads = Readonly<Record<string, Blob | BinaryAsset>>;
 
 export function resourceLimits(input?: ResourceOptions) {
   const workers = input?.workers ?? 0;
@@ -157,7 +159,7 @@ export function defineProject(input: ProjectDefinition): Readonly<ProjectDefinit
   validateFiles(input.files, input.entry);
   if (
     (input.checks?.length ?? 0) > 16 ||
-    input.checks?.some((id) => !Object.hasOwn(input.files, id) || !/\.[jt]sx?$/.test(id))
+    input.checks?.some((id) => !Object.hasOwn(input.files, id) || !isScriptFile(id))
   )
     throw new Error("Checks must name at most 16 source modules");
   for (const path of input.styles || [])

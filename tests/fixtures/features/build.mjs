@@ -13,6 +13,7 @@ await prepareProjects({
   projectRoot: fileURLToPath(new URL("../../", import.meta.url)),
   outDir: path.join(site, "assets"),
   publicBase: "/features/assets/",
+  publicDir: path.join(root, "apps/demo/examples"),
   typecheck: { compilerOptions: { checkJs: false } },
 });
 await build({

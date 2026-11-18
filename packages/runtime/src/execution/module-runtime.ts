@@ -539,6 +539,7 @@ export function createModuleRuntime(
         state: record.state.cell,
         resources: resources && {
           asset: resources.asset,
+          blob: resources.blob,
           worker(id, options) {
             const worker = resources.worker(id, options);
             registerCleanup("dispose", () => worker.terminate());
@@ -635,10 +636,8 @@ export function createModuleRuntime(
         deadline = performance.now() + scheduling.budgetMs;
       }
       let factory: ModuleFactory;
-      if (artifact.kind === "json") {
-        // Data modules have no generated JavaScript or source-map allocation.
-        // One mutable value per evaluation, shared by all importers.
-        const value = JSON.parse(artifact.data);
+      if (artifact.kind === "json" || artifact.kind === "text") {
+        const value = artifact.kind === "json" ? JSON.parse(artifact.data) : artifact.data;
         factory = async (context) => context.export("default", () => value);
       } else {
         const identity = artifact.kind === "asset" ? artifact.assetId : artifact.code;

@@ -44,7 +44,7 @@ const declarations = [
     title: "Declared local assets",
     runtime: "dom",
     entry: "/main.ts",
-    files: ["main.ts"],
+    files: ["main.ts", "description.txt"],
     resources: { assets: { "/icon.svg": { url: "/dom-assets/icon.svg", type: "image/svg+xml" } } },
   },
   {
