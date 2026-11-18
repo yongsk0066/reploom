@@ -185,6 +185,32 @@
   block-size: calc(var(--_height) - var(--_control-height));
 }
 
+.reploom-source-preview .tok-keyword {
+  color: #c678dd;
+}
+.reploom-source-preview :is(.tok-string, .tok-inserted) {
+  color: #98c379;
+}
+.reploom-source-preview :is(.tok-atom, .tok-bool, .tok-number, .tok-literal) {
+  color: #d19a66;
+}
+.reploom-source-preview :is(.tok-operator, .tok-string2, .tok-url) {
+  color: #56b6c2;
+}
+.reploom-source-preview :is(.tok-typeName, .tok-className) {
+  color: #e5c07b;
+}
+.reploom-source-preview :is(.tok-propertyName, .tok-tagName, .tok-deleted, .tok-invalid) {
+  color: #e06c75;
+}
+.reploom-source-preview :is(.tok-definition, .tok-variableName2, .tok-labelName) {
+  color: #61afef;
+}
+.reploom-source-preview .tok-comment {
+  color: #a0a8b7;
+  font-style: italic;
+}
+
 .reploom-code-editor .cm-editor {
   font-size: var(--reploom-code-size, 0.8125rem);
 }

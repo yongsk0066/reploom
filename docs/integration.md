@@ -105,7 +105,7 @@ export function mountExample(host: HTMLElement) {
 
 `Playground` manages its session and preview lifecycle, while the caller owns the platform. Create the platform inside an explicit mount function or a mounting effect. The wrapper supports React Strict Mode's development setup, cleanup, and setup cycle.
 
-By default, `Playground` mounts the full editor eagerly. Setting `editorActivation="interaction"` shows a read-only source preview and an Edit code button; clicking it loads CodeMirror. If the editor fails to load, an editable textarea provides a fallback.
+By default, `Playground` mounts the full editor eagerly. With `editorActivation="interaction"`, visible source previews load the grammar for the selected file and color the code. Readers can select and copy the source. The Edit code button loads CodeMirror. If the editor fails to load, an editable textarea provides a fallback.
 
 Set `compilerActivation="interaction"` to start compiler preparation on editor focus or pointer input; its default, `"edit"`, keeps read-only sessions free of compiler downloads. This option moves startup work before the first edit and may download resources for an interaction that never becomes an edit.
 

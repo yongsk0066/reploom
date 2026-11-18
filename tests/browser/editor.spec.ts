@@ -191,6 +191,20 @@ test("explicit editor activation defers CodeMirror and preserves the running pre
   const article = page.locator('[data-project="dom-counter"]');
   const preview = article.frameLocator("iframe");
   await expect(article).toHaveAttribute("data-phase", "ready");
+  const reader = article.locator(".reploom-source-preview");
+  await reader.scrollIntoViewIfNeeded();
+
+  const keyword = reader
+    .locator(".tok-keyword")
+    .filter({ hasText: /^import$/ })
+    .first();
+
+  const string = reader.locator(".tok-string").first();
+  await expect(keyword).toBeVisible();
+  await expect(string).toBeVisible();
+  const foreground = (node: Element) => getComputedStyle(node).color;
+  expect(await keyword.evaluate(foreground)).not.toBe(await reader.evaluate(foreground));
+  expect(await string.evaluate(foreground)).not.toBe(await keyword.evaluate(foreground));
   await expect(page.locator(".cm-editor")).toHaveCount(0);
   expect(
     requests.filter((url) =>
@@ -214,6 +228,65 @@ test("explicit editor activation defers CodeMirror and preserves the running pre
   expect(
     await preview.locator("body").evaluate(() => (window as any).__editorActivationRealm),
   ).toBe(true);
+});
+
+test("the reader switches grammars and paints restored text across viewport boundaries", async ({
+  page,
+}) => {
+  await page.goto("/regression/?editor=interaction");
+  const article = page.locator('[data-project="react-counter"]');
+  const reader = article.locator(".reploom-source-preview");
+  await expect(article).toHaveAttribute("data-phase", "ready");
+  for (const [path, token] of [
+    ["/src/dashboard.css", ".tok-propertyName"],
+    ["/src/settings.json", ".tok-string"],
+    ["/src/Dashboard.tsx", ".tok-keyword"],
+  ]) {
+    await article.getByRole("tab", { name: path, exact: true }).click();
+    await reader.scrollIntoViewIfNeeded();
+    await expect(reader.locator(token).first()).toBeVisible();
+  }
+
+  await article.getByText("Project tools", { exact: true }).click();
+  const downloaded = page.waitForEvent("download");
+  await article.getByRole("button", { name: "Save project", exact: true }).click();
+  const stream = await (await downloaded).createReadStream();
+  const chunks = [];
+  for await (const chunk of stream!) chunks.push(chunk);
+  const archive = JSON.parse(Buffer.concat(chunks).toString());
+  const path = "/notes.ts";
+
+  const source =
+    "/*" +
+    "a".repeat(4093) +
+    "😀" +
+    "b".repeat(80) +
+    "*/\n" +
+    "// <strong>text</strong>\n".repeat(2600) +
+    "export const lastValue = 42;\n";
+
+  archive.files[path] = source;
+  archive.active = path;
+  await article.locator("input[type=file]").setInputFiles({
+    name: "project.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(archive)),
+  });
+  await expect(article.getByRole("tab", { name: path, exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await reader.scrollIntoViewIfNeeded();
+  await expect(reader.locator(".tok-comment").first()).toBeAttached();
+  expect(await reader.textContent()).toBe(source);
+  await reader.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  await expect(reader.locator(".tok-number").filter({ hasText: /^42$/ })).toBeVisible();
+  expect(await reader.textContent()).toBe(source);
+  await expect(reader.locator("strong")).toHaveCount(0);
+  expect(await reader.locator(".tok-comment").count()).toBeLessThan(700);
+  await expect(article.locator(".cm-editor")).toHaveCount(0);
 });
 
 test("typing and IME composition survive a delayed editor handoff", async ({ page }) => {

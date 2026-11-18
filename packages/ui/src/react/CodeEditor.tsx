@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { createEditor } from "../codemirror/editor.ts";
 import type { EditorOptions } from "../codemirror/editor.ts";
 import type { SourceFiles } from "@yongsk0066/reploom";
+import { mountSourceView } from "../reader/source-view.ts";
 import type { PlaygroundLabels } from "./labels.ts";
 
 type Props = {
@@ -18,6 +19,20 @@ type Props = {
   onIntent?(): void;
   onChange: Parameters<typeof createEditor>[1];
 };
+
+function SourcePreview({
+  path,
+  source,
+  labelId,
+}: {
+  path: string;
+  source: string;
+  labelId: string;
+}) {
+  const pre = useRef<HTMLPreElement>(null);
+  useLayoutEffect(() => mountSourceView(pre.current!, path, source), [path, source]);
+  return <pre ref={pre} className="reploom-source-preview" aria-labelledby={labelId} />;
+}
 
 export default function CodeEditor(props: Props) {
   const host = useRef<HTMLDivElement>(null);
@@ -136,9 +151,11 @@ export default function CodeEditor(props: Props) {
           >
             {props.labels.edit}
           </button>
-          <pre className="reploom-source-preview" aria-labelledby={props.labelId}>
-            {props.files[props.active]?.toString() ?? ""}
-          </pre>
+          <SourcePreview
+            path={props.active}
+            source={props.files[props.active]?.toString() ?? ""}
+            labelId={props.labelId}
+          />
         </>
       ) : (
         !loaded && (
