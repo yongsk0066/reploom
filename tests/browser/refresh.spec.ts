@@ -45,6 +45,8 @@ test("Fast Refresh preserves React state, refs and DOM; CSS avoids effects; inco
   const { article, preview, editor } = await open(page);
   await writeCode(editor, counter);
   await expect(preview.locator("h1")).toHaveText("Counter A");
+  // The replaced example’s closing toasts retire on their own timers and can move the button.
+  await expect(preview.locator(".toastify")).toHaveCount(0);
   await preview.getByRole("button").click({ clickCount: 2 });
   await expect(preview.getByRole("button")).toHaveText("count 2");
   await preview.getByRole("textbox", { name: "Note" }).fill("Retained DOM input");

@@ -155,6 +155,7 @@ async function gallery(browser, origin, project) {
     if (/^https?:/.test(r.url())) requests.push(r.url());
   });
   await page.addInitScript(() => {
+    if (window !== window.top) return;
     globalThis.loading = {};
 
     const mark = (name) => {
@@ -168,12 +169,23 @@ async function gallery(browser, origin, project) {
       );
     };
 
+    const mutations = { subtree: true, childList: true, attributes: true };
+    let surface = document;
+
     const observer = new MutationObserver(() => {
-      if (document.querySelector('[data-project][data-phase="ready"]')) mark("previewMs");
-      if (document.querySelector('[data-editor-ready="true"]')) mark("editorMs");
+      const shadow = document.querySelector(".reploom-host")?.shadowRoot;
+      if (shadow && shadow !== surface) {
+        surface = shadow;
+        observer.observe(surface, mutations);
+      }
+
+      if (surface.querySelector('[data-project][data-phase="ready"]')) mark("previewMs");
+      if (surface.querySelector('[data-editor-ready="true"]')) mark("editorMs");
+      if (globalThis.loading.previewMs !== undefined && globalThis.loading.editorMs !== undefined)
+        observer.disconnect();
     });
 
-    observer.observe(document, { subtree: true, childList: true, attributes: true });
+    observer.observe(document, mutations);
   });
   try {
     await page.goto(`${origin}/#${project}`);
