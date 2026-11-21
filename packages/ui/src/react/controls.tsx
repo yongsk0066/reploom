@@ -1,4 +1,4 @@
-import { memo, useRef } from "react";
+import { memo, useRef, type ReactNode } from "react";
 import type { ProjectSession, ProjectView } from "@yongsk0066/reploom";
 import type { PlaygroundLabels } from "./labels.ts";
 import { useProject } from "./use-project.ts";
@@ -7,11 +7,13 @@ import type { PlaygroundView } from "@yongsk0066/reploom/share";
 
 export type { PlaygroundView } from "@yongsk0066/reploom/share";
 
+import { ControlIcon, DisplaySettings } from "./DisplaySettings.tsx";
+import type { DisplayPreferences } from "./preferences.ts";
 import { ShareProject } from "./ShareProject.tsx";
 
 const initializedOf = (view: ProjectView) => view.initialized;
 
-const ResetSource = memo(function ResetSource({
+export const ResetSource = memo(function ResetSource({
   session,
   title,
   id,
@@ -58,36 +60,56 @@ const ResetSource = memo(function ResetSource({
   );
 });
 
-export function ViewSelector({
+type ToolbarLayoutProps = {
+  id?: string;
+  labels: PlaygroundLabels;
+  view?: PlaygroundView;
+  setView?(view: PlaygroundView): void;
+  expanded?: boolean;
+  setExpanded?(expanded: boolean): void;
+  children: ReactNode;
+};
+
+export function ToolbarLayout({
   id,
   labels,
   view,
   setView,
-  compact,
-}: {
-  id: string;
-  labels: PlaygroundLabels;
-  view: PlaygroundView;
-  setView(view: PlaygroundView): void;
-  compact?: boolean;
-}) {
+  expanded = false,
+  setExpanded,
+  children,
+}: ToolbarLayoutProps) {
+  const panes = id ? id + "-editor " + id + "-preview" : undefined;
   return (
-    <div
-      className={compact ? "reploom-view-controls reploom-compact-views" : "reploom-view-controls"}
-      role="group"
-      aria-label={labels.view}
-    >
-      {(["code", "preview", "split"] as const).map((mode) => (
+    <div className="reploom-toolbar" inert={!id}>
+      <div className="reploom-view-controls" role="group" aria-label={labels.view}>
+        {(["code", "preview", "split"] as const).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            aria-pressed={view === mode}
+            aria-controls={panes}
+            onClick={() => setView?.(mode)}
+          >
+            {labels[mode]}
+          </button>
+        ))}
+      </div>
+      <div className="reploom-actions">
         <button
-          key={mode}
           type="button"
-          aria-pressed={view === mode}
-          aria-controls={`${id}-editor ${id}-preview`}
-          onClick={() => setView(mode)}
+          className="reploom-icon-button"
+          title={expanded ? labels.collapse : labels.expand}
+          aria-label={expanded ? labels.collapse : labels.expand}
+          aria-expanded={expanded}
+          aria-controls={panes}
+          onClick={() => setExpanded?.(!expanded)}
         >
-          {labels[mode]}
+          <ControlIcon name={expanded ? "collapse" : "expand"} />
+          <span className="reploom-wide-label">{expanded ? labels.collapse : labels.expand}</span>
         </button>
-      ))}
+        {children}
+      </div>
     </div>
   );
 }
@@ -99,10 +121,13 @@ export function ViewControls({
   setExpanded,
   session,
   id,
-  title,
+  preferences,
+  onPreferences,
   labels,
   shareTarget,
 }: {
+  preferences: DisplayPreferences;
+  onPreferences(value: DisplayPreferences): void;
   shareTarget?: string;
   view: PlaygroundView;
   expanded: boolean;
@@ -110,26 +135,14 @@ export function ViewControls({
   setExpanded(expanded: boolean): void;
   session: ProjectSession;
   id: string;
-  title: string;
   labels: PlaygroundLabels;
 }) {
   return (
-    <div className="reploom-toolbar">
-      <ViewSelector {...{ id, labels, view, setView }} />
-      <div className="reploom-actions">
-        <button
-          type="button"
-          aria-expanded={expanded}
-          aria-controls={`${id}-panes`}
-          onClick={() => setExpanded(!expanded)}
-        >
-          {expanded ? labels.collapse : labels.expand}
-        </button>
-        {shareTarget && (
-          <ShareProject session={session} view={view} target={shareTarget} labels={labels} />
-        )}
-        <ResetSource session={session} title={title} id={id} labels={labels} />
-      </div>
-    </div>
+    <ToolbarLayout {...{ id, labels, view, setView, expanded, setExpanded }}>
+      {shareTarget && (
+        <ShareProject session={session} view={view} target={shareTarget} labels={labels} />
+      )}
+      <DisplaySettings id={id} labels={labels} value={preferences} onChange={onPreferences} />
+    </ToolbarLayout>
   );
 }

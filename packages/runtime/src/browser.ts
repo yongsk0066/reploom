@@ -20,8 +20,10 @@ export function attachPreview(
   host: HTMLElement,
   title: string,
   platform: Pick<BrowserPlatform, "connectCompilerPreview">,
+  presentation?: import("./shared/presentation.ts").PreviewPresentation,
 ) {
   const bridge = new PreviewBridge(host, title, session.onEvent, platform.connectCompilerPreview);
+  if (presentation) bridge.setPresentation(presentation);
   const unbind = session.bindPreview(bridge);
   const store = session.observe((view) => view.snapshot);
 
@@ -43,3 +45,5 @@ export function attachPreview(
     },
   };
 }
+
+export type { ComputeLabels, PreviewPresentation } from "./shared/presentation.ts";

@@ -33,7 +33,7 @@
     "react-refresh": "0.19.0"
   },
   "peerDependencies": {
-    "@tsrs/wasm": "0.25.0-ts7.1.0-beta"
+    "@tsrs/wasm": "7.1.0-beta.tsrs4"
   },
   "peerDependenciesMeta": {
     "@tsrs/wasm": {

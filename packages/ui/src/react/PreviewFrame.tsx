@@ -6,6 +6,8 @@ import type { ProjectSession } from "@yongsk0066/reploom";
 
 type Props = {
   session: ProjectSession;
+  language?: string;
+  compute: import("@yongsk0066/reploom/browser").ComputeLabels;
   snapshot: Snapshot;
   connectArtifacts: ArtifactConnector;
   title: string;
@@ -18,6 +20,8 @@ export default function PreviewFrame({
   onEvent,
   connectArtifacts,
   session,
+  language,
+  compute,
 }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const bridge = useRef<PreviewBridge | null>(null);
@@ -40,7 +44,8 @@ export default function PreviewFrame({
     };
   }, [connectArtifacts, session]);
   useEffect(() => {
+    bridge.current?.setPresentation({ language, compute });
     bridge.current?.update(snapshot, title);
-  }, [snapshot, title]);
+  }, [snapshot, title, language, compute]);
   return <div ref={host} className="reploom-preview-mount" />;
 }

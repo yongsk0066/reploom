@@ -374,7 +374,7 @@ export type RuntimeEvent =
       requiresRestart: boolean;
       state?: ManagedState;
     }
-  | { type: "console"; revision: number; text: string }
+  | { type: "console"; revision: number; text: string; omitted?: number }
   | { type: "invalidate"; revision: number; id: string };
 
 type Envelope = { protocol: typeof PROTOCOL; generation: string };
@@ -399,6 +399,12 @@ export type PreviewCommand = Envelope &
         assets?: ResourcePayloads;
         state?: ManagedState;
         patch: ProgramPatch;
+      }
+    | {
+        type: "presentation";
+        language: string;
+        title: string;
+        compute?: import("./presentation.ts").ComputeLabels;
       }
     | { type: "apply"; patch: ProgramPatch }
     | { type: "connect-artifacts" }

@@ -1,5 +1,11 @@
 import { TraceMap, originalPositionFor } from "@jridgewell/trace-mapping";
-import type { Compilation, Diagnostic, ModuleArtifact, ModuleDebug } from "../shared/protocol.ts";
+import type {
+  Compilation,
+  Diagnostic,
+  InspectionResult,
+  ModuleArtifact,
+  ModuleDebug,
+} from "../shared/protocol.ts";
 
 type Location = {
   file: string;
@@ -33,6 +39,51 @@ export function createDebugLocations() {
       if (decoded?.sourceMap === removed.sourceMap) decoded = undefined;
       locations.delete(version);
     }
+  }
+
+  function locate(diagnostics: Diagnostic[]): Diagnostic[] {
+    return diagnostics.map((diagnostic) => {
+      for (const match of diagnostic.text.matchAll(
+        /((?:playground:|blob:)[^\s()]+?):(\d+):(\d+)/g,
+      )) {
+        const version = urls.get(match[1]) ?? Number(match[1].match(/\?v=(\d+)$/)?.[1]);
+        const location = locations.get(version);
+        if (!location) continue;
+        try {
+          if (decoded?.sourceMap !== location.sourceMap)
+            decoded = {
+              sourceMap: location.sourceMap,
+              map: new TraceMap(
+                JSON.parse(
+                  new TextDecoder().decode(
+                    Uint8Array.from(
+                      atob(location.sourceMap.slice(location.sourceMap.indexOf(",") + 1)),
+                      (c) => c.charCodeAt(0),
+                    ),
+                  ),
+                ),
+              ),
+            };
+
+          const original = originalPositionFor(decoded.map, {
+            line: Number(match[2]),
+            column: Math.max(0, Number(match[3]) - 1),
+          });
+
+          if (original.line !== null)
+            return {
+              ...diagnostic,
+              file: location.file,
+              line: original.line,
+              column: original.column ?? 0,
+              revision: location.revision,
+            };
+        } catch {
+          continue;
+        }
+      }
+      return diagnostic;
+    });
   }
 
   return {
@@ -84,47 +135,17 @@ export function createDebugLocations() {
       for (const location of locations.values()) location.pending = false;
       trim();
     },
-    locate(diagnostics: Diagnostic[]): Diagnostic[] {
-      return diagnostics.map((diagnostic) => {
-        const match = diagnostic.text.match(/((?:playground:|blob:)[^\s()]+?):(\d+):(\d+)/);
-        if (!match) return diagnostic;
-        const version = urls.get(match[1]) ?? Number(match[1].match(/\?v=(\d+)$/)?.[1]);
-        const location = locations.get(version);
-        if (!location) return diagnostic;
-        try {
-          if (decoded?.sourceMap !== location.sourceMap)
-            decoded = {
-              sourceMap: location.sourceMap,
-              map: new TraceMap(
-                JSON.parse(
-                  new TextDecoder().decode(
-                    Uint8Array.from(
-                      atob(location.sourceMap.slice(location.sourceMap.indexOf(",") + 1)),
-                      (c) => c.charCodeAt(0),
-                    ),
-                  ),
-                ),
-              ),
-            };
-
-          const original = originalPositionFor(decoded.map, {
-            line: Number(match[2]),
-            column: Math.max(0, Number(match[3]) - 1),
-          });
-
-          return original.line === null
-            ? diagnostic
-            : {
-                ...diagnostic,
-                file: location.file,
-                line: original.line,
-                column: original.column ?? 0,
-                revision: location.revision,
-              };
-        } catch {
-          return diagnostic;
-        }
-      });
+    locate,
+    inspect(result: InspectionResult): InspectionResult {
+      if (!result.tests?.some((test) => test.diagnostics.length) && !result.diagnostics.length)
+        return result;
+      return {
+        ...result,
+        diagnostics: locate(result.diagnostics),
+        tests: result.tests?.map((test) =>
+          test.diagnostics.length ? { ...test, diagnostics: locate(test.diagnostics) } : test,
+        ),
+      };
     },
     dispose() {
       for (const location of locations.values()) location.release?.();

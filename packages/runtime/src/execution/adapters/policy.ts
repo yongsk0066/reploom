@@ -45,6 +45,7 @@ export type ExecutionResult = {
 export interface PreviewExecution {
   inspect(request: Inspection): Promise<InspectionResult>;
   apply(program: Compilation, recovering: boolean, revision?: number): Promise<ExecutionResult>;
+  setComputeLabels?(labels?: import("../../shared/presentation.ts").ComputeLabels): void;
   normalizeError?(error: unknown): unknown;
   cancel?(): void;
   dispose(): Promise<Diagnostic[]>;
@@ -53,6 +54,7 @@ export interface PreviewExecution {
 export type ExecutionEnvironment = {
   state?: ManagedState;
   initial: Compilation;
+  computeLabels?: import("../../shared/presentation.ts").ComputeLabels;
   loadFactory: FactoryLoader;
   updateStyles(styles: Styles): void;
   reportError(error: unknown): void;

@@ -1,16 +1,16 @@
 # Interface
 
-Reploom embeds a small editing workspace in a page. Reading the example, changing a file, and checking the result are the primary flow. The default view keeps code and preview together, with file navigation above the editor and a restart action above the result.
+On wide embeds, the workspace opens with code and preview side by side. Each pane has a 360px content area. The upper toolbar switches panels, expands the workspace, and opens display settings.
 
 ## Layout and controls
 
-The file strip supports pointer selection, horizontal scrolling, Left/Right, Home, and End. Only the selected tab enters the Tab sequence; Tab then reaches the editor. The editor maintains each file's selection, scroll position, and undo history.
+Both panes stay mounted when a reader switches views. Below 560px of component width, `mobileView` selects the first panel (code by default). Readers can still select Both to stack the panes. An explicit `defaultView` takes precedence at every width. Compact panes use `clamp(240px, 45svh, 320px)`. Expanding sets either layout to 600px.
 
-Code, Preview, and Both change the visible panes. They do not replace the editor, create another session, or reload the iframe. Expand changes their height. At less than 560px of available component width, the view switch appears above the panes in keyboard order and Both becomes a vertical stack. This threshold is a container query, so an example in a narrow article responds correctly even on a wide monitor.
+File tabs support Left/Right, Home and End. Tab from the selected file reaches the editor. The file bar also lets readers copy the current file and activate a deferred editor. Run again restarts the preview with the current code. Reset source asks for confirmation before restoring the original project. Following a current diagnostic selects and focuses its source line. A split view keeps the preview visible, and a preview-only view opens the editor.
 
-Run again restarts the current program without discarding source edits. Reset source restores the initial files and preview state after a native confirmation dialog. Cancel is the initially focused action; Escape dismisses the dialog. Error locations select and focus the affected source, opening the code pane when necessary. Logs, live-edit guidance, and project tools use native disclosure elements.
+Display settings control line numbers (while editing, always or off), wrapping (automatic at narrow widths, on or off), code text size and theme. Choices are shared between embeds on the same origin and saved in local storage when available. They reconfigure the existing editor while preserving its undo history, selection and preview state. `highlightLines={[first, last]}` marks an inclusive range in the opening file while its original source is displayed.
 
-`showTitle`, `showTools`, and `defaultView` configure the same view. Hiding project tools removes file-management and archive controls from the presentation; the underlying session API remains available to custom interfaces. A blog embed can hide the title and tools, while a standalone gallery can expose them.
+A gallery can expose the Files dialog for adding, moving and deleting files. Deleting a file requires confirmation, and required files are protected. Tests and type checks have separate actions when the prepared project supports them. `showTools={false}` gives an article the reading and editing controls alone.
 
 ## Style ownership
 
@@ -18,7 +18,7 @@ The React view creates one open shadow root per mounted instance and renders thr
 
 A constructed stylesheet is cached by document and shared across instances. Browser-specific editor styles remain owned by CodeMirror. The view imports no external fonts and inherits the host's font family. Its shadow host establishes the relative base text size, which internal controls inherit; this also propagates user font-size changes through fixed-font parent containers. Preview styles belong to the sandboxed iframe and remain separate from both the page and the editor UI.
 
-Set these CSS custom properties on a surrounding element; defaults are shown below. Public properties remain inherited rather than being redeclared on the shadow host.
+Set these CSS custom properties on a surrounding element; the color examples below use the dark palette. Public properties remain inherited rather than being redeclared on the shadow host.
 
 | Property | Default | Purpose |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ Set these CSS custom properties on a surrounding element; defaults are shown bel
 | `--reploom-surface` | `#202024` | Pane toolbars |
 | `--reploom-hover` | `#303036` | Hover and selected controls |
 | `--reploom-text` | `#e4e4e7` | Primary text |
-| `--reploom-muted` | `#a1a1aa` | Secondary text |
+| `--reploom-muted` | `#b4b4bd` | Secondary text |
 | `--reploom-border` | `#3f3f46` | Dividers |
 | `--reploom-focus` | `#a5b4fc` | Keyboard focus |
 | `--reploom-radius` | `8px` | Outer surface and dialog corners |
@@ -34,7 +34,8 @@ Set these CSS custom properties on a surrounding element; defaults are shown bel
 | `--reploom-margin` | `24px` | Outer block spacing |
 | `--reploom-font-size` | `0.8125rem` | Controls |
 | `--reploom-code-size` | `0.8125rem` | Source text |
-| `--reploom-pane-height` | `300px` | Initial code and preview height |
+| `--reploom-pane-height` | `360px` | Initial code and preview height |
+| `--reploom-mobile-height` | compact viewport height | Narrow pane height |
 | `--reploom-expanded-height` | `600px` | Expanded height |
 
 The `surface`, `editor`, and `preview` parts allow targeted host styling through `.reploom-host::part(...)`. Internal class selectors are implementation details. Changes that alter layout should preserve overflow, focus visibility, and the preview's usable viewport.

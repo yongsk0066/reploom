@@ -74,6 +74,8 @@ minimumReleaseAgeExclude:
   - "@turbo/windows-64@2.11.13"
   - "@turbo/windows-arm64@2.11.13"
   - turbo@2.11.13
+  - "@lezer/common@1.5.6"
+  - "@tsrs/wasm@7.1.0-beta.tsrs4"
 patchedDependencies:
-  "@lezer/common@1.5.5": patches/@lezer__common@1.5.5.patch
+  "@lezer/common@1.5.6": patches/@lezer__common@1.5.6.patch
   "@lezer/lr@1.4.12": patches/@lezer__lr@1.4.12.patch

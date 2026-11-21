@@ -1,6 +1,39 @@
 import type { ProjectState } from "@yongsk0066/reploom";
 
+import type { ComputeLabels } from "@yongsk0066/reploom/browser";
+
 export type PlaygroundLabels = {
+  settings: string;
+  lineNumbers: string;
+  lineWrap: string;
+  fontSize: string;
+  theme: string;
+  whenEditing: string;
+  always: string;
+  off: string;
+  on: string;
+  fit: string;
+  siteDefault: string;
+  large: string;
+  larger: string;
+  light: string;
+  dark: string;
+  resetDisplay: string;
+  copySource: string;
+  copied: string;
+  copyFailed: string;
+  lastWorking: string;
+  clearConsole: string;
+  checks: string;
+  runningCheck: string;
+  passedCheck: string;
+  failedCheck: string;
+  fileExists: string;
+  fileRejected: string;
+  archiveTooLarge: string;
+  compute: ComputeLabels;
+  removeNamed(path: string): string;
+  omitted(count: number): string;
   share: string;
   shareLink: string;
   copyLink: string;
@@ -47,6 +80,45 @@ export type PlaygroundLabels = {
 };
 
 export const defaultLabels: Readonly<PlaygroundLabels> = Object.freeze({
+  settings: "Display settings",
+  lineNumbers: "Line numbers",
+  lineWrap: "Wrap long lines",
+  fontSize: "Code text size",
+  theme: "Color theme",
+  whenEditing: "While editing",
+  always: "Always show",
+  off: "Off",
+  on: "On",
+  fit: "Fit available width",
+  siteDefault: "Site default",
+  large: "Large",
+  larger: "Larger",
+  light: "Light",
+  dark: "Dark",
+  resetDisplay: "Reset display settings",
+  copySource: "Copy file",
+  copied: "File copied",
+  copyFailed: "Select the code and copy it.",
+  lastWorking: "Showing last working result",
+  clearConsole: "Clear console",
+  checks: "Checks",
+  runningCheck: "Checking…",
+  passedCheck: "Passed",
+  failedCheck: "Failed",
+  fileExists: "A file already uses this name.",
+  fileRejected: "Use a supported project filename. A project can contain up to 32 files.",
+  archiveTooLarge: "Choose a project file smaller than 5 MiB.",
+  compute: {
+    output: "Compute output",
+    stop: "Stop computation",
+    stopped: "Computation stopped. Edit the code or run it again.",
+    complete: "Computation complete",
+    failed: "Computation failed. Edit the code to run it in a new Worker.",
+    cancelled: "Computation stopped; Worker state was reset.",
+    computing: "Computing",
+  },
+  removeNamed: (path) => "Delete " + path,
+  omitted: (count) => count + " earlier or excess messages omitted.",
   share: "Share example",
   shareLink: "Project link",
   copyLink: "Copy link",
@@ -58,12 +130,12 @@ export const defaultLabels: Readonly<PlaygroundLabels> = Object.freeze({
   close: "Close",
   tools: "Project tools",
   files: "Files",
-  path: "Destination path",
+  path: "New file path",
   addFile: "Add file",
   moveFile: "Move selected file",
   removeFile: "Remove selected file",
   projectSnapshot: "Save and restore",
-  includeState: "Include explicitly registered state",
+  includeState: "Include saved preview state",
   saveProject: "Save project",
   restoreSaved: "Restore saved project",
   openProject: "Open project archive",

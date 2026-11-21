@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, type KeyboardEvent } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { ProjectSession, ProjectView } from "@yongsk0066/reploom";
 import type { BrowserPlatform } from "@yongsk0066/reploom/browser";
 import type { EditorOptions } from "../codemirror/editor.ts";
@@ -8,6 +8,10 @@ import PreviewFrame from "./PreviewFrame.tsx";
 import { shallow, useProject } from "./use-project.ts";
 
 import type { PreparedSource } from "../reader/prepare.ts";
+import type { DisplayPreferences } from "./preferences.ts";
+import { FileMenu } from "./FileMenu.tsx";
+import { ControlIcon } from "./DisplaySettings.tsx";
+import { PreviewLoading, type SourceLines } from "./workspace-layout.tsx";
 import { PreparedSourceView } from "./PreparedSourceView.tsx";
 
 type PanelProps = {
@@ -26,7 +30,13 @@ const editorOf = (view: ProjectView) => ({
     view.state.phase === "error" &&
     view.state.diagnostics.some((e) => e.file?.endsWith(view.active)),
   errors: view.state.phase === "error",
+  diagnostics: view.state.phase === "error" ? view.state.diagnostics : undefined,
+  checks: view.checks,
+  revision: view.revision,
 });
+
+const lastWorkingOf = (view: ProjectView) =>
+  view.state.phase === "error" && view.state.stage === "compile" && !!view.snapshot;
 
 const snapshotOf = (view: ProjectView) => view.snapshot;
 
@@ -117,24 +127,119 @@ export const EditorPane = memo(function EditorPane({
   compilerActivation,
   editorOptions,
   preparedSource,
+  preferences,
+  narrow,
+  highlightLines,
+  showTools,
 }: PanelProps & {
   activation: "eager" | "interaction";
   compilerActivation: "edit" | "interaction";
   editorOptions?: EditorOptions;
   preparedSource?: PreparedSource;
+  preferences: DisplayPreferences;
+  narrow: boolean;
+  showTools: boolean;
+  highlightLines?: SourceLines;
 }) {
   const view = useProject(session, editorOf, shallow);
   const paths = Object.keys(view.files);
+  const [editing, setEditing] = useState(activation !== "interaction");
+  const [copyResult, setCopyResult] = useState("");
+
+  const initial = useRef<{ file: string; text: (typeof view.files)[string] } | undefined>(
+    undefined,
+  );
+
+  if (view.initialized && !initial.current)
+    initial.current = { file: view.active, text: view.files[view.active] };
+
+  const emphasis =
+    initial.current?.file === view.active && initial.current.text === view.files[view.active]
+      ? highlightLines
+      : undefined;
+
+  const diagnostics = useMemo(() => {
+    const notes = [...(view.diagnostics ?? [])];
+    for (const check of Object.values(view.checks ?? {}))
+      if (check?.revision === view.revision) notes.push(...check.diagnostics);
+
+    const current = notes.filter(
+      (d) => d.file === view.active && (d.revision === undefined || d.revision === view.revision),
+    );
+
+    return current.length ? current : undefined;
+  }, [view.diagnostics, view.checks, view.revision, view.active]);
+
+  const numbers = preferences.numbers !== "off";
+  const wrap = preferences.wrap === "on" || (preferences.wrap === "auto" && narrow);
+
+  const display = useMemo(
+    () => ({ numbers, wrap, themed: true, diagnostics, emphasis }),
+    [numbers, wrap, diagnostics, emphasis],
+  );
+
+  useEffect(() => {
+    if (view.selection) setEditing(true);
+  }, [view.selection]);
+  const activated = editing || !!view.selection;
+
+  const prepare =
+    compilerActivation === "interaction"
+      ? () => {
+          void session.prepare();
+        }
+      : undefined;
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(view.files[view.active].toString());
+      setCopyResult(labels.copied);
+    } catch {
+      setCopyResult(labels.copyFailed);
+    }
+  };
 
   return (
     <div className="reploom-editor" part="editor" id={`${id}-editor`}>
-      <FileTabs
-        paths={paths}
-        active={view.active}
-        id={id}
-        label={labels.files}
-        select={(path) => session.select(path)}
-      />
+      <div className="reploom-file-bar">
+        <div className="reploom-file-actions">
+          {showTools && view.initialized && (
+            <FileMenu session={session} active={view.active} labels={labels} id={id} />
+          )}
+          {!activated && view.initialized && (
+            <button
+              type="button"
+              className="reploom-edit"
+              onFocus={prepare}
+              onPointerDown={prepare}
+              onClick={() => setEditing(true)}
+            >
+              <ControlIcon name="edit" />
+              <span>{labels.edit}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={!view.initialized}
+            className="reploom-icon-button"
+            aria-label={labels.copySource}
+            title={labels.copySource}
+            onClick={() => void copy()}
+          >
+            <ControlIcon name="copy" />
+          </button>
+          <span role="status" className="reploom-sr-only">
+            {copyResult}
+          </span>
+        </div>
+        <FileTabs
+          paths={paths}
+          active={view.active}
+          id={id}
+          label={labels.files}
+          select={(path) => session.select(path)}
+        />
+      </div>
       <div
         id={`${id}-source`}
         role="tabpanel"
@@ -143,7 +248,17 @@ export const EditorPane = memo(function EditorPane({
         <span className="reploom-sr-only" id={`${id}-source-label`}>
           {labels.source(view.active)}
         </span>
-        {!view.initialized && preparedSource && <PreparedSourceView source={preparedSource} />}
+        {!view.initialized && (
+          <div className="reploom-code-editor">
+            {preparedSource && (
+              <PreparedSourceView
+                source={preparedSource}
+                numbered={preferences.numbers === "always"}
+                highlightLines={highlightLines}
+              />
+            )}
+          </div>
+        )}
         {view.initialized && (
           <CodeEditor
             preparedSource={preparedSource}
@@ -154,16 +269,13 @@ export const EditorPane = memo(function EditorPane({
             selection={view.selection}
             labelId={`${id}-source-label`}
             invalid={view.invalid}
-            activation={activation}
+            activated={activated}
+            focusOnEdit={editing && activation === "interaction"}
+            display={display}
+            numbered={preferences.numbers === "always"}
             labels={labels}
             describedBy={`${id}-hint${view.errors ? ` ${id}-errors` : ""}`}
-            onIntent={
-              compilerActivation === "interaction"
-                ? () => {
-                    void session.prepare();
-                  }
-                : undefined
-            }
+            onIntent={prepare}
             onChange={(...args) => session.change(...args)}
           />
         )}
@@ -178,13 +290,15 @@ export const PreviewPane = memo(function PreviewPane({
   id,
   platform,
   labels,
-}: PanelProps & { title: string; platform: BrowserPlatform }) {
+  language,
+}: PanelProps & { title: string; platform: BrowserPlatform; language?: string }) {
   const snapshot = useProject(session, snapshotOf);
+  const stale = useProject(session, lastWorkingOf);
 
   return (
     <div className="reploom-preview" part="preview" id={`${id}-preview`}>
       <div className="reploom-preview-bar">
-        <span className="reploom-preview-label">{labels.preview}</span>
+        <span className="reploom-preview-label">{stale ? labels.lastWorking : labels.preview}</span>
         <button
           type="button"
           className="reploom-reload"
@@ -205,10 +319,12 @@ export const PreviewPane = memo(function PreviewPane({
           snapshot={snapshot}
           title={`${title} ${labels.preview}`}
           onEvent={session.onEvent}
+          language={language}
+          compute={labels.compute}
           connectArtifacts={platform.connectCompilerPreview}
         />
       ) : (
-        <p className="reploom-preview-loading">{labels.loading}</p>
+        <PreviewLoading text={labels.loading} />
       )}
     </div>
   );

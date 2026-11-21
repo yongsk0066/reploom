@@ -1,16 +1,25 @@
-import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useId, useRef, useState } from "react";
 import { ProjectSession, type ProjectView, type ProjectArchive } from "@yongsk0066/reploom";
 import type { BrowserPlatform } from "@yongsk0066/reploom/browser";
 import { EditorPane, PreviewPane } from "./panels.tsx";
-import { ViewControls, ViewSelector, type PlaygroundView } from "./controls.tsx";
+import { ViewControls, ResetSource, type PlaygroundView } from "./controls.tsx";
 import { useProject } from "./use-project.ts";
 import { ShadowSurface } from "./ShadowSurface.tsx";
 import type { EditorOptions } from "../codemirror/editor.ts";
 import { ProjectTools } from "./ProjectTools.tsx";
-import { defaultLabels, type PlaygroundLabels } from "./labels.ts";
+import { useLabels } from "./use-labels.ts";
+import { type PlaygroundLabels } from "./labels.ts";
 
 import type { PreparedSource } from "../reader/prepare.ts";
-import { PreparedSourceView } from "./PreparedSourceView.tsx";
+import {
+  FeedbackBar,
+  LoadingSurface,
+  WorkspaceLayout,
+  type Theme,
+  type MobileView,
+  type SourceLines,
+} from "./workspace-layout.tsx";
+import { useDisplayPreferences, useNarrowLayout } from "./preferences.ts";
 
 type UIProps = {
   session: ProjectSession;
@@ -21,9 +30,16 @@ type UIProps = {
 const phaseOf = (v: ProjectView) => v.state.phase;
 const stateOf = (v: ProjectView) => v.state;
 const runtimeOf = (v: ProjectView) => v.snapshot?.program.runtime ?? "react";
+const omittedOf = (v: ProjectView) => v.omittedLogs;
 const logsOf = (v: ProjectView) => v.logs;
 
-const Status = memo(function Status({ session, id, labels, reveal }: UIProps & { reveal(): void }) {
+const Status = memo(function Status({
+  session,
+  id,
+  labels,
+  reveal,
+  title,
+}: UIProps & { title: string; reveal: ProjectSession["reveal"] }) {
   const state = useProject(session, stateOf);
 
   const text =
@@ -37,10 +53,10 @@ const Status = memo(function Status({ session, id, labels, reveal }: UIProps & {
 
   return (
     <>
-      <div className="reploom-feedback">
-        <p className="reploom-status">{labels.status(state)}</p>
+      <FeedbackBar status={labels.status(state)}>
         <UsageHelp session={session} id={id} labels={labels} />
-      </div>
+        <ResetSource session={session} title={title} id={id} labels={labels} />
+      </FeedbackBar>
       <pre
         className="reploom-errors"
         id={`${id}-errors`}
@@ -52,13 +68,7 @@ const Status = memo(function Status({ session, id, labels, reveal }: UIProps & {
           state.diagnostics.map((error, index) => (
             <span key={index}>
               {error.file && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    reveal();
-                    session.reveal(error);
-                  }}
-                >
+                <button type="button" onClick={() => reveal(error)}>
                   {error.file}:{error.line ?? 1}:{(error.column ?? 0) + 1}
                 </button>
               )}{" "}
@@ -85,10 +95,15 @@ const UsageHelp = memo(function UsageHelp({ session, id, labels }: UIProps) {
 
 const Console = memo(function Console({ session, labels }: Pick<UIProps, "session" | "labels">) {
   const logs = useProject(session, logsOf);
-  return logs.length ? (
+  const omitted = useProject(session, omittedOf);
+  return logs.length || omitted ? (
     <details className="reploom-console">
       <summary>{labels.console(logs.length)}</summary>
+      {omitted > 0 && <p>{labels.omitted(omitted)}</p>}
       <pre>{logs.join("\n")}</pre>
+      <button type="button" onClick={() => session.clearLogs()}>
+        {labels.clearConsole}
+      </button>
     </details>
   ) : null;
 });
@@ -105,6 +120,11 @@ export type PlaygroundProps = {
   showTitle?: boolean;
   showTools?: boolean;
   defaultView?: PlaygroundView;
+  mobileView?: MobileView;
+  theme?: Theme;
+  locale?: string;
+  previewLanguage?: string;
+  highlightLines?: SourceLines;
   defaultFile?: string;
   initialArchive?: ProjectArchive;
   shareTarget?: string;
@@ -116,7 +136,7 @@ export default function Playground(props: PlaygroundProps) {
   const { project, platform } = props;
   const opening = useRef({ active: props.defaultFile, archive: props.initialArchive });
   opening.current = { active: props.defaultFile, archive: props.initialArchive };
-  const labels = useMemo(() => ({ ...defaultLabels, ...props.labels }), [props.labels]);
+  const labels = useLabels(props.locale, props.labels);
 
   const [owner, setOwner] = useState<{
     project: string;
@@ -132,17 +152,11 @@ export default function Playground(props: PlaygroundProps) {
   }, [project, platform]);
 
   const loading = (
-    <section
-      className="reploom reploom-loading"
-      aria-label={props.title}
-      data-project={project}
-      data-phase="loading"
-    >
-      {props.preparedSource && props.defaultView !== "preview" && !props.initialArchive && (
-        <PreparedSourceView source={props.preparedSource} />
-      )}
-      {labels.loading}
-    </section>
+    <LoadingSurface
+      {...props}
+      labels={labels}
+      preparedSource={props.initialArchive ? undefined : props.preparedSource}
+    />
   );
 
   return (
@@ -172,7 +186,12 @@ function ProjectUI({
   labels,
   showTitle = true,
   showTools = true,
-  defaultView = "split",
+  defaultView,
+  mobileView = "code",
+  theme = "auto",
+  locale,
+  previewLanguage,
+  highlightLines,
   shareTarget,
   preparedSource,
   initialArchive,
@@ -181,9 +200,21 @@ function ProjectUI({
   const host = useRef<HTMLElement>(null);
 
   const phase = useProject(session, phaseOf);
-  const [view, setView] = useState<PlaygroundView>(defaultView);
+  const [chosenView, setView] = useState(defaultView);
+  const narrow = useNarrowLayout(host);
+  const view = chosenView ?? (narrow ? mobileView : "split");
+  const [preferences, setPreferences] = useDisplayPreferences();
   const [expanded, setExpanded] = useState(false);
-  const reveal = useCallback(() => setView("code"), []);
+
+  const reveal = useCallback<ProjectSession["reveal"]>(
+    (diagnostic) => {
+      if (!session.reveal(diagnostic)) return false;
+      if (view === "preview") setView("code");
+      return true;
+    },
+    [session, view],
+  );
+
   useEffect(() => {
     const element = host.current!;
     const document = element.ownerDocument;
@@ -223,41 +254,61 @@ function ProjectUI({
       aria-label={title}
       data-project={project}
       data-phase={phase}
-      data-view={view}
+      data-view={chosenView ?? "auto"}
+      data-mobile-view={mobileView}
+      lang={locale}
+      data-theme={preferences.theme === "site" ? theme : preferences.theme}
+      data-size={preferences.fontSize}
+      data-wrap={preferences.wrap}
       data-expanded={expanded}
     >
-      {showTitle && (
-        <div className="reploom-heading">
-          <h2>{title}</h2>
-        </div>
-      )}
-      <ViewSelector compact {...{ id, labels, view, setView }} />
-      <div className="reploom-panes" id={`${id}-panes`}>
-        <EditorPane
-          session={session}
-          id={id}
-          activation={editorActivation}
-          compilerActivation={compilerActivation}
-          preparedSource={initialArchive ? undefined : preparedSource}
-          editorOptions={editorOptions}
-          labels={labels}
-        />
-        <PreviewPane session={session} title={title} id={id} platform={platform} labels={labels} />
-      </div>
-      <ViewControls
-        session={session}
-        id={id}
+      <WorkspaceLayout
         title={title}
-        labels={labels}
-        view={view}
-        setView={setView}
-        expanded={expanded}
-        setExpanded={setExpanded}
-        shareTarget={shareTarget}
-      />
-      <Status session={session} id={id} labels={labels} reveal={reveal} />
-      {showTools && <ProjectTools session={session} labels={labels} />}
-      <Console session={session} labels={labels} />
+        showTitle={showTitle}
+        toolbar={
+          <ViewControls
+            session={session}
+            id={id}
+            labels={labels}
+            view={view}
+            setView={setView}
+            expanded={expanded}
+            setExpanded={setExpanded}
+            shareTarget={shareTarget}
+            preferences={preferences}
+            onPreferences={setPreferences}
+          />
+        }
+        editor={
+          <EditorPane
+            session={session}
+            id={id}
+            activation={editorActivation}
+            compilerActivation={compilerActivation}
+            preparedSource={initialArchive ? undefined : preparedSource}
+            editorOptions={editorOptions}
+            showTools={showTools}
+            preferences={preferences}
+            narrow={narrow}
+            highlightLines={highlightLines}
+            labels={labels}
+          />
+        }
+        preview={
+          <PreviewPane
+            session={session}
+            title={title}
+            id={id}
+            platform={platform}
+            language={previewLanguage ?? locale}
+            labels={labels}
+          />
+        }
+      >
+        <Status session={session} id={id} labels={labels} reveal={reveal} title={title} />
+        {showTools && <ProjectTools session={session} labels={labels} reveal={reveal} />}
+        <Console session={session} labels={labels} />
+      </WorkspaceLayout>
     </section>
   );
 }

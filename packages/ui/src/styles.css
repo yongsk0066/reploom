@@ -1,21 +1,25 @@
-:host {
+:host,
+.reploom-host {
+  container: reploom / inline-size;
   display: block;
   min-inline-size: 0;
   font-size: var(--reploom-font-size, 0.8125rem);
 }
 
 .reploom {
-  --_background: var(--reploom-background, #18181b);
-  --_text: var(--reploom-text, #e4e4e7);
-  --_muted: var(--reploom-muted, #a1a1aa);
-  --_border: var(--reploom-border, #3f3f46);
-  --_surface: var(--reploom-surface, #202024);
-  --_hover: var(--reploom-hover, #303036);
-  --_focus: var(--reploom-focus, #a5b4fc);
-  --_height: var(--reploom-pane-height, 300px);
+  --_background: var(--reploom-background, light-dark(#fff, #18181b));
+  --_text: var(--reploom-text, light-dark(#25262a, #e4e4e7));
+  --_muted: var(--reploom-muted, light-dark(#575963, #b4b4bd));
+  --_border: var(--reploom-border, light-dark(#c8c9cf, #3f3f46));
+  --_surface: var(--reploom-surface, light-dark(#f5f5f6, #202024));
+  --_hover: var(--reploom-hover, light-dark(#e7e8ec, #303036));
+  --_focus: var(--reploom-focus, light-dark(#334fa6, #a5b4fc));
+  --_height: var(--reploom-pane-height, 360px);
+  --_code-bg: light-dark(#fafafa, #282c34);
+  --_code-size: var(--reploom-code-size, 0.8125rem);
+  --_narrow: 0;
   --_bar-height: 40px;
   --_control-height: 32px;
-  container: reploom / inline-size;
   min-inline-size: 0;
   color: var(--_text);
   background: var(--_background);
@@ -26,11 +30,11 @@
   font: inherit;
   line-height: 1.5;
   text-align: start;
-  color-scheme: dark;
+  color-scheme: light dark;
 }
 
 .reploom,
-.reploom :where(div, button, select, textarea, pre, fieldset, dialog) {
+.reploom :where(div, button, select, input, textarea, pre, fieldset, dialog) {
   box-sizing: border-box;
 }
 
@@ -89,12 +93,10 @@
 
 .reploom-preview {
   border-block-start: 1px solid var(--_border);
-  background: white;
-  color: #18181b;
-  color-scheme: light;
+  background: var(--_background);
 }
 
-.reploom-file-tabs,
+.reploom-file-bar,
 .reploom-preview-bar {
   display: flex;
   align-items: center;
@@ -166,13 +168,13 @@
   inline-size: 100%;
   block-size: var(--_height);
   resize: none;
-  background: #282c34;
-  color: #e4e4e7;
+  background: var(--_code-bg);
+  color: var(--_text);
   border: 0;
   padding: 12px;
   margin: 0;
   font:
-    var(--reploom-code-size, 0.8125rem)/1.6 ui-monospace,
+    var(--_code-size)/1.6 ui-monospace,
     SFMono-Regular,
     Menlo,
     monospace;
@@ -182,11 +184,11 @@
 }
 
 .reploom-source-preview {
-  block-size: calc(var(--_height) - var(--_control-height));
+  block-size: var(--_height);
 }
 
 .reploom-code-editor .cm-editor {
-  font-size: var(--reploom-code-size, 0.8125rem);
+  font-size: var(--_code-size);
 }
 
 .reploom-code-editor .cm-scroller {
@@ -258,6 +260,14 @@
   min-inline-size: 120px;
 }
 
+.reploom .reploom-help,
+.reploom .reploom-help > summary {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 .reploom-help[open] {
   inline-size: 100%;
 }
@@ -274,8 +284,8 @@
 }
 
 .reploom-errors {
-  background: #381b22;
-  color: #fecdd3;
+  background: light-dark(#fff0f0, #381b22);
+  color: light-dark(#8c2431, #fecdd3);
   padding: 12px;
   margin: 0;
   white-space: pre-wrap;
@@ -359,9 +369,8 @@
   border-color: var(--_border);
 }
 
-.reploom-loading {
-  min-block-size: 340px;
-  padding: 12px;
+.reploom-loading .reploom-file-bar {
+  padding-inline: 12px;
 }
 
 .reploom-sr-only {
@@ -386,28 +395,32 @@
   border: 0;
 }
 
-.reploom-compact-views {
-  padding: 4px 8px;
-  border-block-end: 1px solid var(--_border);
-}
-
 @container reploom (width < 560px) {
-  .reploom-toolbar .reploom-view-controls {
+  .reploom {
+    --_narrow: 1;
+  }
+  .reploom:not([data-expanded="true"]) {
+    --_height: var(--reploom-mobile-height, var(--reploom-pane-height, clamp(240px, 45svh, 320px)));
+  }
+  .reploom[data-view="auto"][data-mobile-view="code"] .reploom-preview,
+  .reploom[data-view="auto"][data-mobile-view="preview"] .reploom-editor,
+  .reploom-wide-label {
     display: none;
   }
-  .reploom-toolbar {
-    justify-content: flex-end;
+  .reploom[data-view="auto"][data-mobile-view="preview"] .reploom-preview {
+    border: 0;
+  }
+  .reploom[data-wrap="auto"] :is(.reploom-source-preview, textarea) {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 }
 
 @container reploom (min-width: 560px) {
-  .reploom-compact-views {
-    display: none;
-  }
-  .reploom[data-view="split"] .reploom-panes {
+  .reploom:is([data-view="split"], [data-view="auto"]) .reploom-panes {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
-  .reploom[data-view="split"] .reploom-preview {
+  .reploom:is([data-view="split"], [data-view="auto"]) .reploom-preview {
     border-block-start: 0;
     border-inline-start: 1px solid var(--_border);
   }
@@ -443,4 +456,193 @@
 }
 .reploom-share-dialog p:empty {
   display: none;
+}
+
+.reploom[data-theme="light"] {
+  color-scheme: light;
+}
+.reploom[data-theme="dark"] {
+  color-scheme: dark;
+}
+.reploom[data-size="large"] {
+  --_code-size: max(var(--reploom-code-size, 0.8125rem), 0.875rem);
+}
+.reploom[data-size="larger"] {
+  --_code-size: max(var(--reploom-code-size, 0.8125rem), 1rem);
+}
+.reploom[data-wrap="on"] :is(.reploom-source-preview, textarea) {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.reploom-toolbar {
+  min-block-size: calc(var(--_control-height) + 9px);
+  border-block-start: 0;
+  border-block-end: 1px solid var(--_border);
+}
+.reploom-feedback {
+  min-block-size: calc(var(--_control-height) + 9px);
+  align-items: center;
+}
+.reploom-tools {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  min-block-size: calc(var(--_control-height) + 9px);
+}
+.reploom-tools details[open] {
+  inline-size: 100%;
+}
+.reploom-file-bar {
+  justify-content: space-between;
+  min-inline-size: 0;
+}
+.reploom-file-tabs {
+  order: 0;
+  display: flex;
+  min-inline-size: 0;
+  align-self: stretch;
+}
+.reploom-file-actions {
+  order: 1;
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+.reploom-actions {
+  align-items: center;
+}
+.reploom-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.reploom-icon-button,
+.reploom-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.reploom button.reploom-icon-button {
+  min-inline-size: var(--_control-height);
+}
+.reploom-settings label,
+.reploom-files label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-block: 8px;
+}
+.reploom-settings select,
+.reploom-files input {
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  background: var(--_surface);
+  border: 1px solid var(--_border);
+  color: var(--_text);
+}
+.reploom-settings {
+  inline-size: min(24rem, calc(100% - 24px));
+}
+.reploom-files code {
+  overflow-wrap: anywhere;
+}
+.reploom-source-line {
+  display: block;
+  position: relative;
+  min-block-size: 1lh;
+}
+[data-numbered="true"] .reploom-source-line {
+  padding-inline-start: 5ch;
+}
+[data-numbered="true"] .reploom-source-line::before {
+  content: attr(data-line) / "";
+  position: absolute;
+  inset-inline-start: 0;
+  text-align: end;
+  inline-size: 4ch;
+  color: var(--_muted);
+  user-select: none;
+}
+.reploom-source-line[data-emphasis],
+.reploom-emphasis {
+  background: light-dark(#e8eef8, #354050);
+}
+.reploom .cm-editor {
+  background: var(--_code-bg);
+  color: var(--_text);
+}
+.reploom .cm-gutters {
+  background: var(--_surface);
+  color: var(--_muted);
+  border-color: var(--_border);
+}
+.reploom .cm-cursor {
+  border-left-color: var(--_text);
+}
+.reploom .cm-activeLine,
+.reploom .cm-activeLineGutter {
+  background: light-dark(#eaeaf05c, #ffffff0c);
+}
+.reploom .cm-editor.cm-focused .cm-selectionBackground,
+.reploom .cm-selectionBackground {
+  background: light-dark(#b3caff, #425479);
+}
+.reploom .reploom-error-line {
+  box-shadow: inset 3px 0 light-dark(#a22833, #f48b96);
+  background: light-dark(#ffeded, #47262d);
+}
+@container reploom (width < 560px) {
+  .reploom-settings:modal {
+    margin: auto auto 0;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    border-radius: 12px 12px 0 0;
+    padding-block-end: max(16px, env(safe-area-inset-bottom));
+  }
+}
+@media (pointer: coarse) {
+  .reploom .reploom-view-controls button {
+    min-inline-size: 44px;
+  }
+}
+
+@media (scripting: none) {
+  .reploom-loading:has(.reploom-source-preview) .reploom-panes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .reploom-loading:has(.reploom-source-preview) .reploom-editor {
+    display: block;
+  }
+  .reploom-loading:has(.reploom-source-preview) .reploom-preview {
+    display: none;
+  }
+}
+
+@container reploom (width < 330px) {
+  .reploom-toolbar {
+    padding-inline: 4px;
+    column-gap: 2px;
+  }
+  .reploom-view-controls,
+  .reploom-actions {
+    gap: 0;
+  }
+  .reploom-view-controls button {
+    padding-inline: 4px;
+  }
+  .reploom-feedback {
+    padding-inline: 6px;
+    column-gap: 4px;
+  }
+  .reploom-status {
+    min-inline-size: 0;
+  }
 }

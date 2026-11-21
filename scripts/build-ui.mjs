@@ -49,6 +49,8 @@ const editor = await build({
   absWorkingDir: root,
   entryPoints: {
     editor: "packages/ui/src/editor.ts",
+    "locales/ko": "packages/ui/src/locales/ko.ts",
+    "locales/ja": "packages/ui/src/locales/ja.ts",
     react: "packages/ui/src/react.ts",
     "prepare-reader": "packages/ui/src/reader/prepare.ts",
   },

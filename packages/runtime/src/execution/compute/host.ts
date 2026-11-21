@@ -6,6 +6,7 @@ import {
   type VersionedProgram,
   type InspectionResult,
 } from "../../shared/protocol.ts";
+import { defaultComputeLabels, type ComputeLabels } from "../../shared/presentation.ts";
 import { validateManagedState } from "../../project/snapshot.ts";
 import { RuntimeUpdateError } from "../module-runtime.ts";
 import type { ComputeCommand, ComputeReply } from "./protocol.ts";
@@ -36,9 +37,24 @@ export function createComputeExecution(
   const stop = document.createElement("button");
 
   status.setAttribute("role", "status");
-  output.setAttribute("aria-label", "Compute output");
+  let labels = environment.computeLabels ?? defaultComputeLabels;
+  let message: "stopped" | "complete" | "failed" | "cancelled" | "computing" | undefined;
+
+  function show(key: NonNullable<typeof message>) {
+    message = key;
+    status.textContent = labels[key];
+  }
+
+  function setComputeLabels(next?: ComputeLabels) {
+    labels = next ?? defaultComputeLabels;
+    output.setAttribute("aria-label", labels.output);
+    stop.textContent = labels.stop;
+    if (message) show(message);
+  }
+
+  setComputeLabels(labels);
   stop.type = "button";
-  stop.textContent = "Stop computation";
+
   stop.disabled = true;
   container.append(status, stop, output);
   container.style.cssText = "font:14px/1.6 system-ui;padding:20px;overflow-wrap:anywhere";
@@ -84,7 +100,7 @@ export function createComputeExecution(
     // release() clears the timeout too; settle a graceful shutdown if its
     // Worker crashed instead of leaving the shutdown Promise pending.
     finishDispose?.(diagnostics);
-    status.textContent = "Computation stopped. Edit the code or run it again.";
+    show("stopped");
     stop.disabled = true;
     const error = new RuntimeUpdateError(diagnostics, false);
     if (pending) pending.reject(error);
@@ -146,7 +162,7 @@ export function createComputeExecution(
     acknowledged = pending.next;
     stop.disabled = true;
     if (data.ok) {
-      status.textContent = "Computation complete";
+      show("complete");
       output.textContent = data.text.slice(0, 32_000);
       pending.resolve({
         outcome: "computed",
@@ -160,7 +176,7 @@ export function createComputeExecution(
       // so editing/recovery cannot revive them; keep the host/editor alive.
       release();
       restoration = data.state ? validateManagedState(data.state) : undefined;
-      status.textContent = "Computation failed. Edit the code to run it in a new Worker.";
+      show("failed");
       pending.reject(
         new RuntimeUpdateError(errorDiagnostics({ diagnostics: data.diagnostics }), false),
       );
@@ -233,12 +249,13 @@ export function createComputeExecution(
     job = undefined;
     release();
     stop.disabled = true;
-    status.textContent = "Computation stopped; Worker state was reset.";
+    show("cancelled");
     pending?.resolve({ outcome: "cancelled", diagnostics: [] });
   }
 
   stop.addEventListener("click", cancel);
   return {
+    setComputeLabels,
     inspect(request) {
       if (!worker || job || closed || inspection)
         return Promise.reject(new Error("Compute inspection requires an idle Worker"));
@@ -264,7 +281,7 @@ export function createComputeExecution(
     apply(program: Compilation, _recovering, sourceRevision) {
       if (closed) return Promise.reject(new Error("The compute preview is disposed."));
       if (job) cancel();
-      status.textContent = "Computing";
+      show("computing");
       stop.disabled = false;
       return new Promise((resolve, reject) => {
         job = {

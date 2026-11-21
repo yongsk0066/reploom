@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { createEditor } from "../codemirror/editor.ts";
-import type { EditorOptions } from "../codemirror/editor.ts";
+import type { EditorOptions, EditorDisplay } from "../codemirror/options.ts";
 import type { SourceFiles } from "@yongsk0066/reploom";
 import { mountSourceView } from "../reader/source-view.ts";
 import type { PlaygroundLabels } from "./labels.ts";
@@ -18,8 +18,11 @@ type Props = {
   labelId: string;
   describedBy: string;
   invalid: boolean;
-  activation?: "eager" | "interaction";
-  labels: Pick<PlaygroundLabels, "edit" | "editorFallback">;
+  activated: boolean;
+  focusOnEdit: boolean;
+  display: EditorDisplay;
+  numbered: boolean;
+  labels: Pick<PlaygroundLabels, "source" | "editorFallback">;
   onIntent?(): void;
   onChange: Parameters<typeof createEditor>[1];
 };
@@ -29,8 +32,12 @@ function SourcePreview({
   source,
   labelId,
   prepared,
+  numbered,
+  emphasis,
 }: {
   prepared?: PreparedSource;
+  numbered: boolean;
+  emphasis?: readonly [number, number];
   path: string;
   source: string;
   labelId: string;
@@ -38,10 +45,25 @@ function SourcePreview({
   const pre = useRef<HTMLPreElement>(null);
   const exact = prepared?.path === path && prepared.text === source ? prepared : undefined;
   useLayoutEffect(() => {
-    if (!exact) return mountSourceView(pre.current!, path, source);
-  }, [exact, path, source]);
-  if (exact) return <PreparedSourceView source={exact} labelId={labelId} />;
-  return <pre ref={pre} className="reploom-source-preview" aria-labelledby={labelId} />;
+    if (!exact) return mountSourceView(pre.current!, path, source, numbered, emphasis);
+  }, [exact, path, source, numbered, emphasis]);
+  if (exact)
+    return (
+      <PreparedSourceView
+        source={exact}
+        labelId={labelId}
+        numbered={numbered}
+        highlightLines={emphasis}
+      />
+    );
+  return (
+    <pre
+      ref={pre}
+      data-numbered={numbered}
+      className="reploom-source-preview"
+      aria-labelledby={labelId}
+    />
+  );
 }
 
 export default function CodeEditor(props: Props) {
@@ -53,13 +75,12 @@ export default function CodeEditor(props: Props) {
   const previousSelection = useRef<string | undefined>(undefined);
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
-  const [activated, activate] = useState(props.activation !== "interaction");
+  const activated = props.activated;
 
   const [factory, setFactory] = useState<typeof createEditor>();
   const [composing, setComposing] = useState(false);
   const fallback = useRef<HTMLTextAreaElement>(null);
   const handoff = useRef<[number, number, number, number] | undefined>(undefined);
-  const focusOnEdit = useRef(false);
 
   function sync() {
     const p = latest.current;
@@ -67,11 +88,13 @@ export default function CodeEditor(props: Props) {
       p.files,
       p.active,
       {
+        "aria-label": p.labels.source(p.active),
         "aria-labelledby": p.labelId,
         "aria-describedby": p.describedBy,
         "aria-invalid": String(p.invalid),
       },
       previousReset.current !== p.resetKey,
+      p.display,
     );
     previousReset.current = p.resetKey;
     if (
@@ -131,7 +154,9 @@ export default function CodeEditor(props: Props) {
     }
   }, [loaded]);
 
-  useEffect(sync, [
+  useLayoutEffect(sync, [
+    props.display,
+    props.labels,
     props.files,
     props.active,
     props.resetKey,
@@ -139,9 +164,7 @@ export default function CodeEditor(props: Props) {
     props.describedBy,
     props.selection,
   ]);
-  useEffect(() => {
-    if (props.selection) activate(true);
-  }, [props.selection]);
+
   return (
     <div
       className="reploom-code-editor"
@@ -152,16 +175,9 @@ export default function CodeEditor(props: Props) {
       <div ref={host} hidden={!loaded} />
       {!activated ? (
         <>
-          <button
-            type="button"
-            onClick={() => {
-              focusOnEdit.current = true;
-              activate(true);
-            }}
-          >
-            {props.labels.edit}
-          </button>
           <SourcePreview
+            numbered={props.numbered}
+            emphasis={props.display.emphasis}
             prepared={props.preparedSource}
             path={props.active}
             source={props.files[props.active]?.toString() ?? ""}
@@ -176,7 +192,7 @@ export default function CodeEditor(props: Props) {
             aria-describedby={props.describedBy}
             spellCheck={false}
             ref={fallback}
-            autoFocus={focusOnEdit.current}
+            autoFocus={props.focusOnEdit}
             onCompositionStart={() => setComposing(true)}
             onCompositionEnd={(event) => {
               props.onChange(props.active, event.currentTarget.value, false);

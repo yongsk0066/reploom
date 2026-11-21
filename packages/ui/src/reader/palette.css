@@ -1,25 +1,28 @@
-.reploom-source-preview .tok-keyword {
-  color: #c678dd;
+:is(.reploom-source-preview, .reploom .cm-content) .tok-keyword {
+  color: light-dark(#73358f, #c678dd);
 }
-.reploom-source-preview :is(.tok-string, .tok-inserted) {
-  color: #98c379;
+:is(.reploom-source-preview, .reploom .cm-content) :is(.tok-string, .tok-inserted) {
+  color: light-dark(#316629, #98c379);
 }
-.reploom-source-preview :is(.tok-atom, .tok-bool, .tok-number, .tok-literal) {
-  color: #d19a66;
+:is(.reploom-source-preview, .reploom .cm-content)
+  :is(.tok-atom, .tok-bool, .tok-number, .tok-literal) {
+  color: light-dark(#86511c, #d19a66);
 }
-.reploom-source-preview :is(.tok-operator, .tok-string2, .tok-url) {
-  color: #56b6c2;
+:is(.reploom-source-preview, .reploom .cm-content) :is(.tok-operator, .tok-string2, .tok-url) {
+  color: light-dark(#1b656e, #56b6c2);
 }
-.reploom-source-preview :is(.tok-typeName, .tok-className) {
-  color: #e5c07b;
+:is(.reploom-source-preview, .reploom .cm-content) :is(.tok-typeName, .tok-className) {
+  color: light-dark(#746015, #e5c07b);
 }
-.reploom-source-preview :is(.tok-propertyName, .tok-tagName, .tok-deleted, .tok-invalid) {
-  color: #e06c75;
+:is(.reploom-source-preview, .reploom .cm-content)
+  :is(.tok-propertyName, .tok-tagName, .tok-deleted, .tok-invalid) {
+  color: light-dark(#a82f45, #e06c75);
 }
-.reploom-source-preview :is(.tok-definition, .tok-variableName2, .tok-labelName) {
-  color: #61afef;
+:is(.reploom-source-preview, .reploom .cm-content)
+  :is(.tok-definition, .tok-variableName2, .tok-labelName) {
+  color: light-dark(#205fa5, #61afef);
 }
-.reploom-source-preview .tok-comment {
-  color: #a0a8b7;
+:is(.reploom-source-preview, .reploom .cm-content) .tok-comment {
+  color: light-dark(#595e68, #a0a8b7);
   font-style: italic;
 }

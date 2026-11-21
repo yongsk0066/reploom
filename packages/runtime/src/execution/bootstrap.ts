@@ -20,6 +20,21 @@ function format(value: unknown, depth = 0): string {
   if (value === null || typeof value !== "object") return String(value).slice(0, 2000);
   if (depth > 1) return Array.isArray(value) ? "[…]" : "{…}";
   try {
+    if (Array.isArray(value)) {
+      const items = [];
+      for (let i = 0; i < Math.min(value.length, 12); i++) {
+        const descriptor = Object.getOwnPropertyDescriptor(value, i);
+        items.push(
+          !descriptor
+            ? ""
+            : "value" in descriptor
+              ? format(descriptor.value, depth + 1)
+              : "[Getter]",
+        );
+      }
+      if (value.length > 12) items.push("…");
+      return "[" + items.join(", ") + "]";
+    }
     return (
       "{" +
       Object.entries(Object.getOwnPropertyDescriptors(value))
@@ -78,6 +93,9 @@ const initialize = (event: MessageEvent) => {
   let closed = false;
   let failed = false;
   let reports = 0;
+  let omitted = 0;
+  let notice: ReturnType<typeof setTimeout> | undefined;
+  let computeLabels: import("../shared/presentation.ts").ComputeLabels | undefined;
   let budgetFaults = 0;
   let execution: PreviewExecution | undefined;
   const styles = new Map<string, HTMLStyleElement>();
@@ -123,9 +141,21 @@ const initialize = (event: MessageEvent) => {
     error: console.error,
   };
 
+  function admitLog() {
+    if (closed) return false;
+    if (reports++ < 100) return true;
+    omitted++;
+    notice ??= setTimeout(() => {
+      notice = undefined;
+      if (omitted) send({ type: "console", revision, text: "", omitted });
+      omitted = 0;
+    }, 100);
+    return false;
+  }
+
   for (const level of ["log", "warn", "error"] as const)
     console[level] = (...args: unknown[]) => {
-      if (closed || reports++ >= 100) return;
+      if (!admitLog()) return;
 
       const text = `[${level}] ${args
         .slice(0, 12)
@@ -169,6 +199,9 @@ const initialize = (event: MessageEvent) => {
     received = next;
     revision = next.revision;
     running = true;
+    clearTimeout(notice);
+    notice = undefined;
+    omitted = 0;
     reports = 0;
     const recovering = failed;
     failed = false;
@@ -194,6 +227,7 @@ const initialize = (event: MessageEvent) => {
         if (vendor.kind !== next.program.runtime) throw new Error("Runtime adapter mismatch.");
         execution = vendor.createExecution(document.getElementById("root")!, {
           initial: next.program,
+          computeLabels,
           state: data.state,
           loadFactory: evaluator.load,
           updateStyles,
@@ -201,7 +235,9 @@ const initialize = (event: MessageEvent) => {
           worker: data.worker,
           assets: data.assets,
           resources: resources.access,
-          onConsole: (text) => send({ type: "console", revision, text }),
+          onConsole: (text) => {
+            if (admitLog()) send({ type: "console", revision, text });
+          },
           onInvalidate: (id) => send({ type: "invalidate", revision, id }),
           onDiagnostic: (errors) =>
             send({
@@ -258,6 +294,7 @@ const initialize = (event: MessageEvent) => {
     styleAnchor.remove();
     removeEventListener("error", onError);
     removeEventListener("unhandledrejection", onRejection);
+    clearTimeout(notice);
     Object.assign(console, originals);
     port.postMessage({
       protocol: PROTOCOL,
@@ -304,7 +341,12 @@ const initialize = (event: MessageEvent) => {
 
   port.onmessage = ({ data, ports }: MessageEvent<PreviewCommand>) => {
     if (closed || data?.protocol !== PROTOCOL || data.generation !== generation) return;
-    if (data.type === "dispose") void dispose();
+    if (data.type === "presentation") {
+      document.documentElement.lang = data.language;
+      document.title = data.title;
+      computeLabels = data.compute;
+      execution?.setComputeLabels?.(computeLabels);
+    } else if (data.type === "dispose") void dispose();
     else if (data.type === "inspect") {
       void (async () => {
         try {
@@ -312,7 +354,12 @@ const initialize = (event: MessageEvent) => {
             throw new Error("Inspection requires the settled revision");
           const result = await execution.inspect(data.request);
           if (!closed && data.revision === revision)
-            send({ type: "inspection", id: data.id, revision, result });
+            send({
+              type: "inspection",
+              id: data.id,
+              revision,
+              result: evaluator.debug.inspect(result),
+            });
         } catch (error) {
           send({
             type: "inspection",

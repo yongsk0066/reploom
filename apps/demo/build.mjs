@@ -11,6 +11,7 @@ const out = path.join(root, "dist");
 await rm(out, { recursive: true, force: true });
 await prepareProjects({
   projects,
+  typecheck: { compilerOptions: { noImplicitAny: false } },
   projectRoot: root,
   outDir: path.join(out, "reploom"),
   publicBase: "/reploom/",

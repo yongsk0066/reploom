@@ -1,8 +1,8 @@
 :root {
-  color-scheme: dark;
+  color-scheme: light dark;
   font: 16px/1.5 system-ui;
-  background: #0f172a;
-  color: #e2e8f0;
+  background: light-dark(#fafafa, #18181b);
+  color: light-dark(#25262a, #e4e4e7);
 }
 body {
   margin: 0;
@@ -20,7 +20,7 @@ body {
   margin-bottom: 4px;
 }
 .gallery-heading p {
-  color: #94a3b8;
+  color: light-dark(#575963, #b4b4bd);
 }
 .gallery-heading label {
   display: block;
@@ -30,6 +30,6 @@ body {
   width: min(100%, 440px);
   font: inherit;
   padding: 10px;
-  border: 1px solid #475569;
+  border: 1px solid light-dark(#c8c9cf, #3f3f46);
   border-radius: 8px;
 }

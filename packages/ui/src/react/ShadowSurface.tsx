@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import css from "../styles.css";
 import palette from "../reader/palette.css";
@@ -29,7 +29,7 @@ export function ShadowSurface({
   const host = useRef<HTMLDivElement>(null);
   const [root, setRoot] = useState<ShadowRoot>();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setRoot(attachSurface(host.current!));
   }, []);
 

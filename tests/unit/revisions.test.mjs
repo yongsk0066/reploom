@@ -446,6 +446,33 @@ test("compiler rollover waits for preview acknowledgements and reseeds after ret
   }
 });
 
+test("debug locations skip unknown and unmapped stack frames during inspections", () => {
+  const debug = createDebugLocations();
+  const artifact = { kind: "js", id: "/source.ts", code: "sample()" };
+
+  const map = Buffer.from(
+    JSON.stringify({ version: 3, names: [], sources: ["/source.ts"], mappings: "AAAA" }),
+  ).toString("base64");
+
+  debug.register(1, artifact, { sourceMap: "data:application/json;base64," + map });
+  debug.alias(1, "blob:null/mapped", () => {});
+  const text = "at blob:null/unknown:1:1\nat blob:null/mapped:20:1\nat blob:null/mapped:1:1";
+
+  const result = debug.inspect({
+    diagnostics: [],
+    tests: [{ file: "/check.ts", ok: false, diagnostics: [{ text }] }],
+  });
+
+  assert.deepEqual(result.tests[0].diagnostics[0], {
+    text,
+    file: "/source.ts",
+    line: 1,
+    column: 0,
+    revision: 0,
+  });
+  debug.dispose();
+});
+
 test("debug source leases retain active factories, bound history and release every URL", () => {
   const debug = createDebugLocations();
   const compiler = createProjectCompiler(createEngine(module), config);

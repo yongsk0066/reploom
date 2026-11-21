@@ -65,6 +65,8 @@ for (const [id, path, before, after] of cases)
     } else if (id.startsWith("compute-")) {
       await expect(preview.locator("pre")).toContainText('"runs": 1');
     }
+    if (id === "compute-fractal")
+      await article.getByRole("button", { name: "Edit code", exact: true }).click();
     const editor = article.getByRole("textbox", { name: path + " code" });
     const original = await readCode(editor);
     if (before) expect(original).toContain(before);

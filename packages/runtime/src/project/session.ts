@@ -52,6 +52,7 @@ export type ProjectState =
 // the core never needs an EditorView, its history, or a particular editor API.
 export type ProjectView = {
   capabilities?: { tests: boolean; types: boolean };
+  requiredFiles?: readonly string[];
   checks?: Partial<
     Record<
       "tests" | "types",
@@ -69,6 +70,7 @@ export type ProjectView = {
   snapshot?: Snapshot;
   state: ProjectState;
   logs: string[];
+  omittedLogs: number;
   editorReset: number;
   initialized: boolean;
   selection?: { file: string; line: number; column: number; id: string };
@@ -115,6 +117,7 @@ const initial: ProjectView = {
   active: "",
   state: { phase: "loading" },
   logs: [],
+  omittedLogs: 0,
   editorReset: 0,
   initialized: false,
 };
@@ -234,6 +237,7 @@ export class ProjectSession {
     this.restartRequired = false;
     this.set({
       logs: [],
+      omittedLogs: 0,
       state: { phase: "starting" },
       snapshot: {
         program: output,
@@ -269,6 +273,7 @@ export class ProjectSession {
         files: project.files,
         active: active && Object.hasOwn(project.files, active) ? active : project.output.entry,
         initialized: true,
+        requiredFiles: [project.output.entry, ...project.output.styles, ...(project.checks ?? [])],
         capabilities: {
           tests: !!project.checks?.length && !!this.services.validation?.tests,
           types: !!project.typecheck && !!this.services.validation?.types,
@@ -464,6 +469,10 @@ export class ProjectSession {
 
     if (sameSource) this.lastGood = { files: prepared, output: this.original.output };
     this.schedule(true, true, sameSource ? prepared : archive.files);
+  }
+
+  clearLogs() {
+    if (!this.disposed) this.set({ logs: [], omittedLogs: 0 });
   }
 
   reveal(diagnostic: Diagnostic) {
@@ -703,11 +712,24 @@ export class ProjectSession {
       return;
     }
     if (event.type === "console") {
-      this.set({ logs: [...this.view.logs, event.text].slice(-30) });
+      this.recordConsole(event);
       return;
     }
     this.settlePreview(event);
   };
+
+  private recordConsole(event: Extract<PreviewEvent, { type: "console" }>) {
+    if (event.omitted !== undefined) {
+      if (Number.isSafeInteger(event.omitted) && event.omitted > 0)
+        this.set({ omittedLogs: this.view.omittedLogs + event.omitted });
+      return;
+    }
+    const logs = [...this.view.logs, event.text];
+    this.set({
+      logs: logs.slice(-30),
+      omittedLogs: this.view.omittedLogs + Math.max(0, logs.length - 30),
+    });
+  }
 
   private settlePreview(event: Extract<PreviewEvent, { type: "settled" | "runtime-error" }>) {
     this.admission.settled(event.revision, this.now());

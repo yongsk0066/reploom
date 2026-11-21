@@ -48,6 +48,40 @@ export class PreviewBridge {
   private replacing = false;
   private closed = false;
   private title: string;
+  private presentation: import("../shared/presentation.ts").PreviewPresentation = {};
+
+  private language() {
+    const requested =
+      this.presentation.language || this.host.ownerDocument.documentElement.lang || "en";
+
+    try {
+      return Intl.getCanonicalLocales(requested)[0] || "en";
+    } catch {
+      return "en";
+    }
+  }
+
+  private present(c: Connection) {
+    this.post(c, {
+      protocol: PROTOCOL,
+      generation: c.generation,
+      type: "presentation",
+      language: this.language(),
+      title: this.title,
+      compute: this.presentation.compute,
+    });
+  }
+
+  setPresentation(presentation: import("../shared/presentation.ts").PreviewPresentation) {
+    if (
+      this.presentation.language === presentation.language &&
+      this.presentation.compute === presentation.compute
+    )
+      return;
+    this.presentation = presentation;
+    if (this.connection?.ready) this.present(this.connection);
+  }
+
   private readonly host: HTMLElement;
   private readonly onEvent: (event: PreviewEvent) => void;
   private readonly connectArtifacts?: ArtifactConnector;
@@ -72,8 +106,12 @@ export class PreviewBridge {
     )
       this.cancelInspections();
     this.latest = snapshot;
+    const renamed = this.title !== title;
     this.title = title;
-    if (this.connection) this.connection.frame.title = title;
+    if (this.connection) {
+      this.connection.frame.title = title;
+      if (renamed && this.connection.ready) this.present(this.connection);
+    }
     if (this.connection?.generation !== snapshot.generation) void this.replace();
     else {
       const c = this.connection;
@@ -231,7 +269,7 @@ export class PreviewBridge {
       const compute = snapshot.program.runtime === "compute";
       const nested = !!snapshot.program.resources?.workers;
       const csp = `default-src 'none'; script-src 'nonce-${c.generation}'${compute || nested ? " blob:" : ""}; worker-src ${compute || nested ? "blob:" : "'none'"}; style-src 'unsafe-inline'; img-src data: blob:; font-src data: blob:; connect-src blob:; base-uri 'none'; form-action 'none';`;
-      frame.srcdoc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta http-equiv="Content-Security-Policy" content="${csp}"><title>Code preview</title></head><body><div id="root"></div><script nonce="${c.generation}">${snapshot.bootstrap.replace(/<\/script/gi, "<\\/script")}</script></body></html>`;
+      frame.srcdoc = `<!doctype html><html lang="${this.language()}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta http-equiv="Content-Security-Policy" content="${csp}"><title>Code preview</title></head><body><div id="root"></div><script nonce="${c.generation}">${snapshot.bootstrap.replace(/<\/script/gi, "<\\/script")}</script></body></html>`;
       const projectId = snapshot.projectId;
       frame.onload = () => {
         if (this.closed || c.disposing || this.connection !== c) return;
@@ -322,6 +360,7 @@ export class PreviewBridge {
     }
     if (data.type === "ready") {
       c.ready = true;
+      this.present(c);
       this.connectArtifactPort(c, projectId);
       this.flush();
     } else if (data.type === "request-program") {

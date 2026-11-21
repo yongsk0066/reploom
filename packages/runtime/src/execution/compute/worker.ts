@@ -175,7 +175,11 @@ addEventListener("message", ({ data }: MessageEvent<ComputeCommand>) => {
             ? { state: runtime.captureState(), diagnostics: [] }
             : { tests: await runtime.test(data.request.paths), diagnostics: [] };
 
-        send({ type: "inspection", id: data.id, result });
+        send({
+          type: "inspection",
+          id: data.id,
+          result: evaluator?.debug.inspect(result) ?? result,
+        });
       } catch (error) {
         send({ type: "inspection", id: data.id, result: { diagnostics: errorDiagnostics(error) } });
       }

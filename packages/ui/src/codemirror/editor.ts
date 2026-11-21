@@ -26,10 +26,13 @@ import {
 } from "@codemirror/lang-javascript";
 import { cssLanguage } from "@codemirror/lang-css";
 import { json } from "@codemirror/lang-json";
+import { classHighlighter } from "@lezer/highlight";
+import { syntaxHighlighting } from "@codemirror/language";
+import { Decoration } from "@codemirror/view";
 import { oneDark } from "@codemirror/theme-one-dark";
 import type { SourceFiles, SourceText } from "@yongsk0066/reploom";
 import { createLanguageAnalysis } from "./language/client.ts";
-import type { EditorOptions } from "./options.ts";
+import type { EditorOptions, EditorDisplay } from "./options.ts";
 
 export type { EditorOptions } from "./options.ts";
 
@@ -85,6 +88,35 @@ function pasteDocument(event: ClipboardEvent, view: EditorView) {
   return true;
 }
 
+const defaultDisplay: EditorDisplay = { numbers: true, wrap: false, themed: false };
+
+function displayExtensions(display: EditorDisplay) {
+  return [
+    display.numbers ? [lineNumbers(), highlightActiveLineGutter()] : [],
+    display.wrap ? EditorView.lineWrapping : [],
+    display.themed ? syntaxHighlighting(classHighlighter) : oneDark,
+    EditorView.decorations.of((view) => {
+      const marks = [];
+      const doc = view.state.doc;
+      const emphasis = display.emphasis;
+      if (emphasis)
+        for (let n = Math.max(1, emphasis[0]); n <= Math.min(doc.lines, emphasis[1]); n++)
+          marks.push(Decoration.line({ class: "reploom-emphasis" }).range(doc.line(n).from));
+      for (const note of display.diagnostics ?? []) {
+        const n = note.line;
+        if (n && n >= 1 && n <= doc.lines)
+          marks.push(
+            Decoration.line({
+              class: "reploom-error-line",
+              attributes: { title: note.text },
+            }).range(doc.line(n).from),
+          );
+      }
+      return Decoration.set(marks, true);
+    }),
+  ];
+}
+
 export function createEditor(
   parent: HTMLElement,
   changed: (
@@ -105,6 +137,9 @@ export function createEditor(
 
   const documents = new Map<string, Document>();
   const attributes = new Compartment();
+  const appearance = new Compartment();
+  let displayExtension = displayExtensions(defaultDisplay);
+  let lastDisplay = defaultDisplay;
   let current = "";
   let currentText: SourceText = "";
   let lastAttributes: Record<string, string> = {};
@@ -136,15 +171,13 @@ export function createEditor(
   };
 
   const extension = (path: string) => [
-    lineNumbers(),
-    highlightActiveLineGutter(),
+    appearance.of(displayExtension),
     history(),
     drawSelection(),
     indentOnInput(),
     bracketMatching(),
     highlightActiveLine(),
     keymap.of([...defaultKeymap, ...historyKeymap]),
-    oneDark,
     language(path),
     attributes.of(
       EditorView.contentAttributes.of({
@@ -178,8 +211,24 @@ export function createEditor(
 
   let releaseScroll = options.scrollAxisLock === false ? undefined : lockScrollAxis(view.scrollDOM);
 
+  function syncDisplay(editor: EditorView, display: EditorDisplay) {
+    if (lastDisplay !== display) {
+      displayExtension = displayExtensions(display);
+      lastDisplay = display;
+    }
+    if (appearance.get(editor.state) !== displayExtension) {
+      editor.dispatch({ effects: appearance.reconfigure(displayExtension) });
+    }
+  }
+
   return {
-    sync(files: SourceFiles, active: string, attrs: Record<string, string>, reset: boolean) {
+    sync(
+      files: SourceFiles,
+      active: string,
+      attrs: Record<string, string>,
+      reset: boolean,
+      display = defaultDisplay,
+    ) {
       if (!view) return;
       applying = true;
       try {
@@ -217,6 +266,7 @@ export function createEditor(
         } else if (currentText !== activeText) {
           view.update([replaceText(view.state, activeText)]);
         }
+        syncDisplay(view, display);
         current = active;
         currentText = activeText;
 

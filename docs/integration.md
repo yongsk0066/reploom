@@ -107,7 +107,7 @@ export function mountExample(host: HTMLElement) {
 
 `Playground` manages its session and preview lifecycle, while the caller owns the platform. Create the platform inside an explicit mount function or a mounting effect. The wrapper supports React Strict Mode's development setup, cleanup, and setup cycle.
 
-For server-rendered documentation, call `prepareSource(path, text)` from `@yongsk0066/reploom-ui/prepare-reader` during the build. Pass the result as `preparedSource` with `editorActivation="interaction"`. The React view reuses the colors while the file and its contents match. A lightweight host shell can render `PreparedSourceView` with the same data and import `@yongsk0066/reploom-ui/reader.css`. The spans use UTF-16 offsets in a typed array. When passing them through plain JSON, serialize the spans with `Array.from`. Files above 8,192 UTF-16 units or 768 styled spans use the viewport reader.
+For server-rendered documentation, call `prepareSource(path, text)` from `@yongsk0066/reploom-ui/prepare-reader` during the build. Pass the result as `preparedSource` with `editorActivation="interaction"`. The React view reuses the colors while the file and its contents match. Render `PlaygroundPlaceholder` with the same layout, locale and prepared source and import `@yongsk0066/reploom-ui/styles.css` to reserve the live geometry before hydration. For a standalone code block, render `PreparedSourceView` and import `@yongsk0066/reploom-ui/reader.css`. The spans use UTF-16 offsets in a typed array. When passing them through plain JSON, serialize the spans with `Array.from`. Files above 8,192 UTF-16 units or 768 styled spans use the viewport reader.
 
 Set `--reploom-code-size` on the host to size the editor and reader. A positive `--reploom-preview-scale` scales the embedded document and adjusts its viewport to fill the panel. Its default is 1.
 
@@ -117,7 +117,7 @@ Set `compilerActivation="interaction"` to start compiler preparation on editor f
 
 The React view uses an open Shadow DOM with a stylesheet shared by instances in the same document. Install matching `react` and `react-dom` peers; the view uses a portal in the existing React tree. It includes its own CSS, so importing `styles.css` is unnecessary. The headless and CodeMirror entry points still work without either React package.
 
-Customize text through `labels` (`defaultLabels` and `PlaygroundLabels` are exported). Set theme properties such as `--reploom-background`, `--reploom-text`, `--reploom-border`, and `--reploom-radius` on the host or an ancestor. Page selectors no longer reach internal controls. See the [interface contract](interface.md) for layout, sizing, keyboard behavior, and supported styling channels.
+Set `locale` to `en`, `ko`, or `ja` for the controls, dialogs and built-in computation output. `previewLanguage` overrides the iframe language for examples written in another language. Host `labels` override the selected language. For server-rendered translations, import `labels` from `@yongsk0066/reploom-ui/locales/ko` or `/locales/ja` and pass the same pack to both views. `theme` accepts `auto`, `light` or `dark`. Set theme properties such as `--reploom-background`, `--reploom-text`, `--reploom-border`, and `--reploom-radius` on the host or an ancestor. Page selectors no longer reach internal controls. See the [interface contract](interface.md) for layout, sizing, keyboard behavior, and supported styling channels.
 
 Use `showTitle={false}` when surrounding content already names the example, `showTools={false}` for a reading-focused embed, and `defaultView="preview"` or `"code"` to choose a single initial pane. The default `"split"` view shows both panes and stacks them in containers narrower than 560px. Switching views and expanding panels keep the editor and preview mounted.
 
@@ -179,7 +179,7 @@ await prepareProjects({
 });
 ```
 
-Install `@tsrs/wasm@0.25.0-ts7.1.0-beta` in `projectRoot`, together with declaration packages needed by the examples. React projects need `@types/react` and `@types/react-dom`. Preparation collects declarations from installed dependencies; `typecheck.packages` can name additional type packages. The default checker settings include `strict: false`, `checkJs: true`, and `skipLibCheck: true`; supplied compiler options override them, while emission and composite builds remain disabled. Incremental checking is enabled automatically at 128,000 UTF-16 source code units; set `compilerOptions.incremental` explicitly to override this threshold. Its private in-memory build information is capped at 1 MiB and ends with the checker lease.
+Install `@tsrs/wasm@7.1.0-beta.tsrs4` in `projectRoot`, together with declaration packages needed by the examples. React projects need `@types/react` and `@types/react-dom`. Preparation collects declarations from installed dependencies; `typecheck.packages` can name additional type packages. The default checker settings include `strict: false`, `checkJs: true`, and `skipLibCheck: true`; supplied compiler options override them, while emission and composite builds remain disabled. Incremental checking is enabled automatically at 128,000 UTF-16 source code units; set `compilerOptions.incremental` explicitly to override this threshold. Its private in-memory build information is capped at 1 MiB and ends with the checker lease.
 
 Call `await session.check("types")` to run the checker in an on-demand Worker. Editing cancels checks for the old revision. Results appear under `view.checks.tests` or `view.checks.types`, tagged with their source revision. The platform allows one active job of each kind and eight waiting jobs per kind, and reuses the checker Worker briefly after success. Failure, timeout, or cancellation retires it immediately. A headless host may instead inject either validation service through `SessionServices`.
 
@@ -193,7 +193,7 @@ Otherwise, the same idle period bounds an exact source/result cache, which can s
 
 ## Opening and sharing an example
 
-Use `defaultView="preview"` or `"code"` to choose the opening panel and `defaultFile="/src/helper.ts"` to select a source. Each embed can choose its own starting point. The entry file opens when the requested path is unavailable. A headless host can pass the same path to `session.start({ active })`.
+Use `defaultView="preview"` or `"code"` to choose the opening panel and `defaultFile="/src/helper.ts"` to select a source. Set `mobileView="preview"` to start with the result only in compact embeds while wide embeds open in split view. The entry file opens when the requested path is unavailable. A headless host can pass the same path to `session.start({ active })`.
 
 Pass `shareTarget="/examples/shared/"` to enable the Share action. A link carries the schema-1 project archive and the current panel in a gzip-compressed URL fragment. Readers can copy the link or open it directly. The dialog offers registered state from a settled preview and a JSON file when the project exceeds the 64 KiB fragment budget. Only state explicitly registered by the example can travel between tabs. The destination must serve the matching prepared project.
 

@@ -228,7 +228,7 @@ test("the bundled UI saves and restores explicit state, runs checks and manages 
   await preview.getByRole("textbox").fill("Saved task");
   await preview.getByRole("button", { name: "Add", exact: true }).click();
   await article.getByText("Project tools", { exact: true }).click();
-  await article.getByLabel("Include explicitly registered state").check();
+  await article.getByLabel("Include saved preview state").check();
   const downloaded = page.waitForEvent("download");
   await article.getByRole("button", { name: "Save project", exact: true }).click();
   expect((await downloaded).suggestedFilename()).toBe("dom-todos.reploom.json");
@@ -239,15 +239,29 @@ test("the bundled UI saves and restores explicit state, runs checks and manages 
   await expect(preview.locator("li")).toHaveCount(2);
   await expect(preview.locator("ul")).toContainText("Saved task");
   await article.getByRole("button", { name: "Run isolated tests" }).click();
-  await expect(article.locator(".reploom-tools output")).toHaveText("passed");
+  await expect(article.locator(".reploom-tools output").filter({ hasText: "Passed" })).toHaveCount(
+    1,
+  );
   await expect(preview.locator("li")).toHaveCount(2);
-  await article.getByLabel("Destination path").fill("/extra.ts");
+  const files = article.getByRole("button", { name: "Files", exact: true });
+  await files.click();
+  await expect(
+    article.getByRole("button", { name: "Delete /main.ts", exact: true }),
+  ).toBeDisabled();
+  await article.getByLabel("New file path").fill("extra.ts");
   await article.getByRole("button", { name: "Add file", exact: true }).click();
   await expect(article.getByRole("tab", { name: "/extra.ts", exact: true })).toHaveAttribute(
     "aria-selected",
     "true",
   );
-  await article.getByRole("button", { name: "Remove selected file" }).click();
+  await files.click();
+  const remove = article.getByRole("button", { name: "Delete /extra.ts", exact: true });
+  await remove.click();
+  await article.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(article.getByRole("tab", { name: "/extra.ts", exact: true })).toBeVisible();
+  await files.click();
+  await remove.click();
+  await remove.click();
   await expect(article.getByRole("tab", { name: "/main.ts", exact: true })).toHaveAttribute(
     "aria-selected",
     "true",

@@ -1,34 +1,27 @@
-import { useMemo, useState, useSyncExternalStore } from "react";
-import type { ProjectArchive, ProjectSession } from "@yongsk0066/reploom";
+import { useState } from "react";
+import type { ProjectArchive, ProjectSession, ProjectView } from "@yongsk0066/reploom";
 import type { PlaygroundLabels } from "./labels.ts";
 
 import { downloadArchive } from "./archive-download.ts";
 
+import { useProject, shallow } from "./use-project.ts";
+
+const toolsOf = (v: ProjectView) => ({
+  initialized: v.initialized,
+  capabilities: v.capabilities,
+  checks: v.checks,
+});
+
 export function ProjectTools({
   session,
   labels,
+  reveal,
 }: {
   session: ProjectSession;
   labels: PlaygroundLabels;
+  reveal: ProjectSession["reveal"];
 }) {
-  const store = useMemo(
-    () =>
-      session.observe(
-        (view) => ({
-          capabilities: view.capabilities,
-          checks: view.checks,
-          initialized: view.initialized,
-        }),
-        (a, b) =>
-          a.capabilities === b.capabilities &&
-          a.checks === b.checks &&
-          a.initialized === b.initialized,
-      ),
-    [session],
-  );
-
-  const view = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
-  const [path, setPath] = useState("");
+  const view = useProject(session, toolsOf, shallow);
   const [state, setState] = useState(false);
   const [archive, setArchive] = useState<ProjectArchive>();
   const [message, setMessage] = useState("");
@@ -60,7 +53,7 @@ export function ProjectTools({
 
   async function restore(file: File) {
     try {
-      if (file.size > 5 * 1024 * 1024) throw new Error("Project archive exceeds 5 MiB");
+      if (file.size > 5 * 1024 * 1024) throw new Error(labels.archiveTooLarge);
       session.restore(JSON.parse(await file.text()));
       setMessage("");
     } catch (error) {
@@ -69,87 +62,43 @@ export function ProjectTools({
   }
 
   return (
-    <details className="reploom-tools">
-      <summary>{labels.tools}</summary>
-      <fieldset disabled={!view.initialized}>
-        <legend>{labels.files}</legend>
-        <label>
-          {labels.path}
-          <input
-            value={path}
-            onChange={(event) => setPath(event.target.value)}
-            placeholder="/helper.ts"
-          />
-        </label>
-        <button
-          type="button"
-          onClick={() =>
-            perform(() => {
-              if (Object.hasOwn(session.getSnapshot().files, path))
-                throw new Error("File already exists");
-              session.transaction([
-                { type: "write", path, source: path.endsWith(".json") ? "{}" : "" },
-              ]);
-              session.select(path);
-            })
-          }
-        >
-          {labels.addFile}
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            perform(() =>
-              session.transaction([{ type: "move", from: session.getSnapshot().active, to: path }]),
-            )
-          }
-        >
-          {labels.moveFile}
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            perform(() =>
-              session.transaction([{ type: "remove", path: session.getSnapshot().active }]),
-            )
-          }
-        >
-          {labels.removeFile}
-        </button>
-      </fieldset>
-      <fieldset disabled={!view.initialized || saving}>
-        <legend>{labels.projectSnapshot}</legend>
-        <label>
-          <input
-            type="checkbox"
-            checked={state}
-            onChange={(event) => setState(event.target.checked)}
-          />
-          {labels.includeState}
-        </label>
-        <button type="button" onClick={() => void save()}>
-          {labels.saveProject}
-        </button>
-        <button
-          type="button"
-          disabled={!archive}
-          onClick={() => perform(() => session.restore(archive))}
-        >
-          {labels.restoreSaved}
-        </button>
-        <label>
-          {labels.openProject}
-          <input
-            type="file"
-            accept=".json,application/json"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.target.value = "";
-              if (file) void restore(file);
-            }}
-          />
-        </label>
-      </fieldset>
+    <div className="reploom-tools">
+      <details>
+        <summary>{labels.tools}</summary>
+        <fieldset disabled={!view.initialized || saving}>
+          <legend>{labels.projectSnapshot}</legend>
+          <label>
+            <input
+              type="checkbox"
+              checked={state}
+              onChange={(event) => setState(event.target.checked)}
+            />
+            {labels.includeState}
+          </label>
+          <button type="button" onClick={() => void save()}>
+            {labels.saveProject}
+          </button>
+          <button
+            type="button"
+            disabled={!archive}
+            onClick={() => perform(() => session.restore(archive))}
+          >
+            {labels.restoreSaved}
+          </button>
+          <label>
+            {labels.openProject}
+            <input
+              type="file"
+              accept=".json,application/json"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void restore(file);
+              }}
+            />
+          </label>
+        </fieldset>
+      </details>
       {(["tests", "types"] as const)
         .filter((kind) => view.capabilities?.[kind])
         .map((kind) => (
@@ -165,18 +114,30 @@ export function ProjectTools({
             >
               {kind === "tests" ? labels.runTests : labels.checkTypes}
             </button>
-            <output>{view.checks?.[kind]?.phase}</output>
+            <output>
+              {view.checks?.[kind] &&
+                {
+                  running: labels.runningCheck,
+                  passed: labels.passedCheck,
+                  failed: labels.failedCheck,
+                }[view.checks[kind]!.phase]}
+            </output>
             {view.checks?.[kind]?.diagnostics.map((diagnostic, index) => (
               <p key={index}>
-                <button type="button" onClick={() => session.reveal(diagnostic)}>
-                  {diagnostic.file}:{diagnostic.line}
-                </button>{" "}
+                {diagnostic.file && (
+                  <>
+                    <button type="button" onClick={() => reveal(diagnostic)}>
+                      {diagnostic.file}
+                      {diagnostic.line && ":" + diagnostic.line}
+                    </button>{" "}
+                  </>
+                )}
                 {diagnostic.text}
               </p>
             ))}
           </div>
         ))}
-      <p role="status">{message}</p>
-    </details>
+      {message && <p role="status">{message}</p>}
+    </div>
   );
 }
